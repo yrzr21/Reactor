@@ -15,7 +15,7 @@
 #include <netinet/tcp.h> // TCP_NODELAY需要包含这个头文件。
 #include "tools/InetAddress.h"
 #include "tools/Socket.h"
-#include "tools/Epoll.h"
+#include "tools/Eventloop.h"
 
 int main(int argc, char *argv[])
 {
@@ -33,20 +33,14 @@ int main(int argc, char *argv[])
     servsock.bind(servaddr);
     servsock.listen();
 
-    Epoll ep;
+    Eventloop loop;
 
-    Channel *servChannel = new Channel(&ep, servsock.fd());
+    Channel *servChannel = new Channel(loop.ep(), servsock.fd());
     // 提前绑定默认参数
     servChannel->setreadcallback(std::bind(&Channel::newconnection, servChannel, &servsock));
-    servChannel->enablereading();  // 监视读事件
-    ep.updatechannel(servChannel); // 添加到epoll
+    servChannel->enablereading(); // 监视读事件
 
-    while (true) // 事件循环。
-    {
-        std::vector<Channel *> rChannels = ep.loop(); // 等待监视的fd有事件发生。
-        for (auto ch : rChannels)
-            ch->handleEvent();
-    }
+    loop.run();
 
     return 0;
 }

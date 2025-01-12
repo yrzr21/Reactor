@@ -65,8 +65,6 @@ void Channel::newconnection(Socket *servsock)
     peerChannel->enablereading(), peerChannel->useet(); // 监视读，边缘触发
     peerChannel->setreadcallback(std::bind(&Channel::onmessage, peerChannel));
 
-    this->ep_->updatechannel(peerChannel);
-
     printf("accept client(fd=%d,ip=%s,port=%d) ok.\n", clientsock->fd(), clientaddr.ip(), clientaddr.port());
 }
 

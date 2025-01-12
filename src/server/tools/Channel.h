@@ -11,6 +11,7 @@ class Channel
 {
 private:
     int fd_ = -1;           // Channel拥有的fd，Channel和fd是一对一的关系。
+    
     Epoll *ep_ = nullptr;   // Channel对应的红黑树，Channel与Epoll是多对一的关系，一个Channel只对应一个Epoll。
     bool inepoll_ = false;  // Channel是否已添加到epoll树上，如果未添加，调用epoll_ctl()的时候用EPOLL_CTL_ADD，否则用EPOLL_CTL_MOD。
     uint32_t events_ = 0;   // fd_需要监视的事件。listenfd和clientfd需要监视EPOLLIN，clientfd还可能需要监视EPOLLOUT。
