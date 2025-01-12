@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    TcpServer tcpserver(argv[1], atoi(argv[2]));
+    TcpServer tcpserver(argv[1], atoi(argv[2]), 128);
     tcpserver.start();
 
     return 0;

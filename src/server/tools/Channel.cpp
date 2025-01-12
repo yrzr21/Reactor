@@ -1,6 +1,6 @@
 #include "Channel.h"
 
-Channel::Channel(Eventloop* loop, int fd) : loop_(loop), fd_(fd) // 构造函数。
+Channel::Channel(Eventloop *loop, int fd) : loop_(loop), fd_(fd) // 构造函数。
 {
 }
 
@@ -35,11 +35,9 @@ void Channel::newconnection(Socket *servsock)
     InetAddress clientaddr; // 客户端的地址和协议。
     // 注意，clientsock只能new出来，不能在栈上，否则析构函数会关闭fd。
     // 还有，这里new出来的对象没有释放，这个问题以后再解决。
-    Socket *clientsock = new Socket(servsock->accept(clientaddr));
+    Socket *clientsock = new Socket(servsock->accept(clientaddr)); // 被 clientConnector 管理
 
-    Channel *peerChannel = new Channel(this->loop_, clientsock->fd()); // 属于同一个事件循环
-    peerChannel->enablereading(), peerChannel->useet(); // 监视读，边缘触发
-    peerChannel->setreadcallback(std::bind(&Channel::onmessage, peerChannel));
+    Connection *clientConnection = new Connection(this->loop_, clientsock);
 
     printf("accept client(fd=%d,ip=%s,port=%d) ok.\n", clientsock->fd(), clientaddr.ip(), clientaddr.port());
 }

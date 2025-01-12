@@ -7,6 +7,7 @@
 #include "InetAddress.h"
 #include "Socket.h"
 #include "Eventloop.h"
+#include "Connection.h"
 
 class Eventloop;
 
