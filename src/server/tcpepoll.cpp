@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
 
     Eventloop loop;
 
-    Channel *servChannel = new Channel(loop.ep(), servsock.fd());
+    Channel *servChannel = new Channel(&loop, servsock.fd());
     // 提前绑定默认参数
     servChannel->setreadcallback(std::bind(&Channel::newconnection, servChannel, &servsock));
     servChannel->enablereading(); // 监视读事件

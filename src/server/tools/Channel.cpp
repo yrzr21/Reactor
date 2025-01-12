@@ -1,36 +1,12 @@
 #include "Channel.h"
 
-/*
-class Channel
-{
-private:
-    int fd_=-1;                             // Channel拥有的fd，Channel和fd是一对一的关系。
-    Epoll *ep_=nullptr;                // Channel对应的红黑树，Channel与Epoll是多对一的关系，一个Channel只对应一个Epoll。
-    bool inepoll_=false;              // Channel是否已添加到epoll树上，如果未添加，调用epoll_ctl()的时候用EPOLL_CTL_ADD，否则用EPOLL_CTL_MOD。
-    uint32_t events_=0;              // fd_需要监视的事件。listenfd和clientfd需要监视EPOLLIN，clientfd还可能需要监视EPOLLOUT。
-    uint32_t revents_=0;             // fd_已发生的事件。
-
-public:
-    Channel(Epoll* ep,int fd);      // 构造函数。
-    ~Channel();                           // 析构函数。
-
-    int fd();                                            // 返回fd_成员。
-    void useet();                                    // 采用边缘触发。
-    void enablereading();                     // 让epoll_wait()监视fd_的读事件。
-    void setinepoll();;                           // 把inepoll_成员的值设置为true。
-    void setrevents(uint32_t ev);         // 设置revents_成员的值为参数ev。
-    bool inpoll();                                  // 返回inepoll_成员。
-    uint32_t events();                           // 返回events_成员。
-    uint32_t revents();                          // 返回revents_成员。
-};*/
-
-Channel::Channel(Epoll *ep, int fd) : ep_(ep), fd_(fd) // 构造函数。
+Channel::Channel(Eventloop* loop, int fd) : loop_(loop), fd_(fd) // 构造函数。
 {
 }
 
 Channel::~Channel() // 析构函数。
 {
-    // 在析构函数中，不要销毁ep_，也不能关闭fd_，因为这两个东西不属于Channel类，Channel类只是需要它们，使用它们而已。
+    // 在析构函数中，不要销毁loop_，也不能关闭fd_，因为这两个东西不属于Channel类，Channel类只是需要它们，使用它们而已。
 }
 
 void Channel::handleEvent()
@@ -61,7 +37,7 @@ void Channel::newconnection(Socket *servsock)
     // 还有，这里new出来的对象没有释放，这个问题以后再解决。
     Socket *clientsock = new Socket(servsock->accept(clientaddr));
 
-    Channel *peerChannel = new Channel(this->ep_, clientsock->fd());
+    Channel *peerChannel = new Channel(this->loop_, clientsock->fd()); // 属于同一个事件循环
     peerChannel->enablereading(), peerChannel->useet(); // 监视读，边缘触发
     peerChannel->setreadcallback(std::bind(&Channel::onmessage, peerChannel));
 
@@ -114,7 +90,7 @@ void Channel::useet() // 采用边缘触发。
 void Channel::enablereading() // 让epoll_wait()监视fd_的读事件。
 {
     events_ |= EPOLLIN;
-    ep_->updatechannel(this);
+    loop_->updateChannel(this);
 }
 
 void Channel::setinepoll() // 把inepoll_成员的值设置为true。

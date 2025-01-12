@@ -1,4 +1,7 @@
 #pragma once
+#ifndef EPOLL
+#define EPOLL
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -28,3 +31,6 @@ public:
     // void addfd(int fd, uint32_t op);                 // 把fd和它需要监视的事件添加到红黑树上。
     // std::vector<epoll_event> loop(int timeout=-1);   // 运行epoll_wait()，等待事件的发生，已发生的事件用vector容器返回。
 };
+
+#endif // !EPOLL
+

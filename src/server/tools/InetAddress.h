@@ -1,5 +1,6 @@
 #pragma once
-
+#ifndef INETADDRESS
+#define INETADDRESS
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <string>
@@ -20,3 +21,5 @@ public:
     const sockaddr *addr() const;         // 返回addr_成员的地址，转换成了sockaddr。
     void setaddr(sockaddr_in clientaddr); // 设置addr_成员的值。
 };
+
+#endif // !INETADDRESS
