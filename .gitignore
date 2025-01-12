@@ -1,5 +1,5 @@
 build
-debug
+debug/*
 history
 test.cpp
 .vscode

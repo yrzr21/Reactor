@@ -1,5 +1,6 @@
 #pragma once
 #include <sys/epoll.h>
+#include <functional>
 #include "Epoll.h"
 #include "InetAddress.h"
 #include "Socket.h"
@@ -14,14 +15,21 @@ private:
     bool inepoll_ = false;  // Channel是否已添加到epoll树上，如果未添加，调用epoll_ctl()的时候用EPOLL_CTL_ADD，否则用EPOLL_CTL_MOD。
     uint32_t events_ = 0;   // fd_需要监视的事件。listenfd和clientfd需要监视EPOLLIN，clientfd还可能需要监视EPOLLOUT。
     uint32_t revents_ = 0;  // fd_已发生的事件。
-    bool islisten_ = false; // listenfd取值为true，客户端连上来的fd取值false。
+
+    std::function<void()> readCallback_; // fd_读事件的回调函数。
 
 public:
-    Channel(Epoll *ep, int fd, bool islisten); // 构造函数。
+    Channel(Epoll *ep, int fd); // 构造函数。
     ~Channel();                                // 析构函数。
 
-    void handleEvent(Socket *servsock); // 处理事件，revents_ 由 Epoll::loop 设置
+    void handleEvent(); // 处理事件，revents_ 由 Epoll::loop 设置
 
+    void setreadcallback(std::function<void()> fn); // 注册 fd 读事件处理函数，回调
+    // 这两个函数用于注册读事件 handler
+    void newconnection(Socket *servsock);           // 读事件，lisen fd 新连接
+    void onmessage();                               // 读事件，客户端发消息
+
+    // 返回与设置成员
     int fd();                     // 返回fd_成员。
     void useet();                 // 采用边缘触发。
     void enablereading();         // 让epoll_wait()监视fd_的读事件。

@@ -35,15 +35,17 @@ int main(int argc, char *argv[])
 
     Epoll ep;
 
-    Channel *servChannel = new Channel(&ep, servsock.fd(), true);
-    servChannel->enablereading(); // 读事件，水平触发
-    ep.updatechannel(servChannel);
+    Channel *servChannel = new Channel(&ep, servsock.fd());
+    // 提前绑定默认参数
+    servChannel->setreadcallback(std::bind(&Channel::newconnection, servChannel, &servsock));
+    servChannel->enablereading();  // 监视读事件
+    ep.updatechannel(servChannel); // 添加到epoll
 
     while (true) // 事件循环。
     {
         std::vector<Channel *> rChannels = ep.loop(); // 等待监视的fd有事件发生。
         for (auto ch : rChannels)
-            ch->handleEvent(&servsock);
+            ch->handleEvent();
     }
 
     return 0;
