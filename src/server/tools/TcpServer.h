@@ -18,6 +18,7 @@ public:
     ~TcpServer();
 
     void start(); // 开始监听，有客户端连接后启动事件循环。原文中仅作启动事件循环
+    void newConnection(Socket *clientSocket);
 };
 
 #endif // !TCPSERVER

@@ -11,9 +11,9 @@ Acceptor::Acceptor(const std::string &ip, uint16_t port, Eventloop *loop, int ma
 
     this->acceptChannel = new Channel(loop, this->acceptSocket->fd());
 
-    this->acceptChannel->setreadcallback( // 提前绑定默认参数
-        std::bind(&Channel::newconnection, acceptChannel, this->acceptSocket));
-    this->acceptChannel->enablereading(); // 监视读事件
+    this->acceptChannel->setreadcallback( // 注册读事件handler, 提前绑定默认参数
+        std::bind(&Acceptor::newconnection, this));
+    this->acceptChannel->enablereading(); // 监视读事件，加入到epoll
 }
 
 Acceptor::~Acceptor()
@@ -25,4 +25,23 @@ Acceptor::~Acceptor()
 void Acceptor::listen()
 {
     this->acceptSocket->listen(this->maxN_);
+}
+
+// 处理新客户端连接请求。
+void Acceptor::newconnection()
+{
+    InetAddress clientaddr; // 客户端的地址和协议。
+    // 注意，clientsock只能new出来，不能在栈上，否则析构函数会关闭fd。
+    // 还有，这里new出来的对象没有释放，这个问题以后再解决。
+    Socket *clientsock = new Socket(this->acceptSocket->accept(clientaddr)); // 被 clientConnector 管理
+
+    this->readCallback_(clientsock);
+    // Connection *clientConnection = new Connection(this->loop_, clientsock);
+
+    printf("accept client(fd=%d,ip=%s,port=%d) ok.\n", clientsock->fd(), clientaddr.ip(), clientaddr.port());
+}
+
+void Acceptor::setReadCallback(std::function<void(Socket *clientSocket)> fn)
+{
+    this->readCallback_ = fn;
 }

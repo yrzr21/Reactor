@@ -31,9 +31,6 @@ public:
     void handleEvent(); // 处理事件，revents_ 由 Epoll::loop 设置
 
     void setreadcallback(std::function<void()> fn); // 注册 fd 读事件处理函数，回调
-    // 这两个函数用于注册读事件 handler
-    void newconnection(Socket *servsock);           // 读事件，lisen fd 新连接
-    void onmessage();                               // 读事件，客户端发消息
 
     // 返回与设置成员
     int fd();                     // 返回fd_成员。
