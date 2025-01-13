@@ -12,26 +12,30 @@ Channel::~Channel() // 析构函数。
 void Channel::handleEvent()
 {
     if (this->revents_ & EPOLLRDHUP) // 对方已关闭，有些系统检测不到，可以使用 EPOLLIN，recv()返回0。
-    {
-        printf("client(eventfd=%d) disconnected.\n", this->fd_);
-        close(this->fd_); // 关闭客户端的fd。
-    } //  普通数据  带外数据
-    else if (this->revents_ & (EPOLLIN | EPOLLPRI))
+        this->closeCallback_();
+    else if (this->revents_ & (EPOLLIN | EPOLLPRI))//  普通数据  带外数据
         this->readCallback_();          // 接收缓冲区中有数据可以读。
     else if (this->revents_ & EPOLLOUT) // 有数据需要写，暂时没有代码，以后再说。
     {
     }
     else // 其它事件，都视为错误。
-    {
-        printf("client(eventfd=%d) error.\n", this->fd_);
-        close(this->fd_); // 关闭客户端的fd。
-    }
+        this->errorCallback_();
 }
 
 // 注册 fd 读事件处理函数，回调
 void Channel::setreadcallback(std::function<void()> fn)
 {
     this->readCallback_ = fn;
+}
+
+void Channel::setClosecallback(std::function<void()> fn)
+{
+    this->closeCallback_ = fn;
+}
+
+void Channel::setErrorcallback(std::function<void()> fn)
+{
+    this->errorCallback_ = fn;
 }
 
 int Channel::fd() // 返回fd_成员。

@@ -12,7 +12,7 @@ private:
     Socket *acceptSocket;   // 管理, 析构函数中释放
     Channel *acceptChannel; // 管理, 析构函数中释放
 
-    std::function<void(Socket *clientSocket)> readCallback_; // 回调tcpServer中的读事件 handler，传递给对方继续处理
+    std::function<void(Socket *clientSocket)> newConnection_cb_; // 回调tcpServer中的读事件 handler，传递给对方继续处理
 
     int maxN_; // listen最大
 
@@ -24,7 +24,7 @@ public:
 
     void newconnection(); // 读事件回调，需要注册到channel，处理新客户端连接请求。
 
-    void setReadCallback(std::function<void(Socket *clientSocket)> fn);
+    void setNewConnection_cb(std::function<void(Socket *clientSocket)> fn);
 };
 
 #endif // !ACCEPTOR

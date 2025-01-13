@@ -35,13 +35,12 @@ void Acceptor::newconnection()
     // 还有，这里new出来的对象没有释放，这个问题以后再解决。
     Socket *clientsock = new Socket(this->acceptSocket->accept(clientaddr)); // 被 clientConnector 管理
 
-    this->readCallback_(clientsock);
+    this->newConnection_cb_(clientsock);
     // Connection *clientConnection = new Connection(this->loop_, clientsock);
 
-    printf("accept client(fd=%d,ip=%s,port=%d) ok.\n", clientsock->fd(), clientaddr.ip(), clientaddr.port());
 }
 
-void Acceptor::setReadCallback(std::function<void(Socket *clientSocket)> fn)
+void Acceptor::setNewConnection_cb(std::function<void(Socket *clientSocket)> fn)
 {
-    this->readCallback_ = fn;
+    this->newConnection_cb_ = fn;
 }

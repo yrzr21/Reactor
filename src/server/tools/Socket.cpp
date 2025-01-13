@@ -1,6 +1,5 @@
 #include "Socket.h"
 
-
 // 创建一个非阻塞的socket。
 int createnonblocking()
 {
@@ -31,6 +30,16 @@ int Socket::fd() const // 返回fd_成员。
     return fd_;
 }
 
+std::string Socket::ip() const
+{
+    return this->ip_;
+}
+
+uint16_t Socket::port() const
+{
+    return this->port_;
+}
+
 void Socket::setTcpnodelay(bool on)
 {
     int optval = on ? 1 : 0;
@@ -55,14 +64,16 @@ void Socket::setKeepalive(bool on)
     ::setsockopt(fd_, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval));
 }
 
-void Socket::bind(const InetAddress &servaddr)
+void Socket::bind(const InetAddress &addr)
 {
-    if (::bind(fd_, servaddr.addr(), sizeof(sockaddr)) < 0)
+    if (::bind(fd_, addr.addr(), sizeof(sockaddr)) < 0)
     {
         perror("bind() failed");
         close(fd_);
         exit(-1);
     }
+    this->ip_ = addr.ip();
+    this->port_ = addr.port();
 }
 
 void Socket::listen(int nn)

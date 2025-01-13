@@ -6,7 +6,10 @@ Connection::Connection(Eventloop *loop, Socket *clientSocket)
 {
     this->clientChannel_ = new Channel(this->loop_, clientSocket->fd());  // 属于同一个事件循环
     this->clientChannel_->enablereading(), this->clientChannel_->useet(); // 监视读，边缘触发
+
     this->clientChannel_->setreadcallback(std::bind(&Connection::onmessage, this));
+    this->clientChannel_->setClosecallback(std::bind(&Connection::onClose, this));
+    this->clientChannel_->setErrorcallback(std::bind(&Connection::onError, this));
 }
 
 Connection::~Connection()
@@ -41,3 +44,46 @@ void Connection::onmessage()
     }
 
 } // 处理对端发送过来的消息。
+
+void Connection::onClose()
+{
+    this->close_cb_(this);
+
+    printf("client(eventfd=%d) disconnected.\n", this->fd());
+    // 以下不必要，因为tcpserver中关闭connection，connection会关闭socket，socket负责关闭fd
+    // close(this->fd()); // 关闭客户端的fd。
+}
+
+void Connection::onError()
+{
+    this->error_cb_(this);
+
+    printf("client(eventfd=%d) error.\n", this->fd());
+    // 以下不必要，因为tcpserver中关闭connection，connection会关闭socket，socket负责关闭fd
+    // close(this->fd()); // 关闭客户端的fd。
+}
+
+int Connection::fd() const // 返回fd_成员。
+{
+    return this->clientSocket_->fd();
+}
+
+std::string Connection::ip() const
+{
+    return this->clientSocket_->ip();
+}
+
+uint16_t Connection::port() const
+{
+    return this->clientSocket_->port();
+}
+
+void Connection::setClose_cb(std::function<void(Connection *connection)> fn)
+{
+    this->close_cb_ = fn;
+}
+
+void Connection::setError_cb(std::function<void(Connection *connection)> fn)
+{
+    this->error_cb_ = fn;
+}
