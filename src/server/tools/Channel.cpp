@@ -13,11 +13,10 @@ void Channel::handleEvent()
 {
     if (this->revents_ & EPOLLRDHUP) // 对方已关闭，有些系统检测不到，可以使用 EPOLLIN，recv()返回0。
         this->closeCallback_();
-    else if (this->revents_ & (EPOLLIN | EPOLLPRI))//  普通数据  带外数据
-        this->readCallback_();          // 接收缓冲区中有数据可以读。
-    else if (this->revents_ & EPOLLOUT) // 有数据需要写，暂时没有代码，以后再说。
-    {
-    }
+    else if (this->revents_ & (EPOLLIN | EPOLLPRI)) //  普通数据  带外数据
+        this->readCallback_();                      // 接收缓冲区中有数据可以读。
+    else if (this->revents_ & EPOLLOUT)             // 发送缓冲区变为可写状态
+        this->onWritableCallback_();
     else // 其它事件，都视为错误。
         this->errorCallback_();
 }
@@ -26,6 +25,11 @@ void Channel::handleEvent()
 void Channel::setreadcallback(std::function<void()> fn)
 {
     this->readCallback_ = fn;
+}
+
+void Channel::setWritablecallback(std::function<void()> fn)
+{
+    this->onWritableCallback_ = fn;
 }
 
 void Channel::setClosecallback(std::function<void()> fn)
@@ -51,6 +55,24 @@ void Channel::useet() // 采用边缘触发。
 void Channel::enablereading() // 让epoll_wait()监视fd_的读事件。
 {
     events_ |= EPOLLIN;
+    loop_->updateChannel(this);
+}
+
+void Channel::disableReading()
+{
+    events_ &= ~EPOLLIN;
+    loop_->updateChannel(this);
+}
+
+void Channel::enableWriting()
+{
+    events_ |= EPOLLOUT;
+    loop_->updateChannel(this);
+}
+
+void Channel::disableWriting()
+{
+    events_ &= ~EPOLLOUT;
     loop_->updateChannel(this);
 }
 

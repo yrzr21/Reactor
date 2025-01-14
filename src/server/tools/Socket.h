@@ -30,6 +30,7 @@ public:
     std::string ip() const;
     uint16_t port() const;
 
+    void setIpPort(const std::string &ip, uint16_t port);
     void setReuseaddr(bool on);  // 设置SO_REUSEADDR选项，true-打开，false-关闭。
     void setReuseport(bool on);  // 设置SO_REUSEPORT选项。
     void setTcpnodelay(bool on); // 设置TCP_NODELAY选项。

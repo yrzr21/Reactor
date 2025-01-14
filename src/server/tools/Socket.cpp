@@ -46,6 +46,12 @@ void Socket::setTcpnodelay(bool on)
     ::setsockopt(fd_, IPPROTO_TCP, TCP_NODELAY, &optval, sizeof(optval)); // TCP_NODELAY包含头文件 <netinet/tcp.h>
 }
 
+void Socket::setIpPort(const std::string &ip, uint16_t port)
+{
+    this->ip_ = ip;
+    this->port_ = port;
+}
+
 void Socket::setReuseaddr(bool on)
 {
     int optval = on ? 1 : 0;
@@ -72,8 +78,8 @@ void Socket::bind(const InetAddress &addr)
         close(fd_);
         exit(-1);
     }
-    this->ip_ = addr.ip();
-    this->port_ = addr.port();
+
+    this->setIpPort(addr.ip(), addr.port());
 }
 
 void Socket::listen(int nn)
