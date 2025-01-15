@@ -64,7 +64,10 @@ void Connection::onWritable()
         this->outputBuffer_.erase(0, nwrite);
 
     if (this->outputBuffer_.size() == 0)
+    {
         this->clientChannel_->disableWriting();
+        this->sendComplete_cb_(this);
+    }
 }
 
 void Connection::onClose()
@@ -112,6 +115,11 @@ uint16_t Connection::port() const
 void Connection::setOnmessage_cb(std::function<void(Connection *, std::string)> fn)
 {
     this->onmessage_cb_ = fn;
+}
+
+void Connection::setSendComplete_cb(std::function<void(Connection *)> fn)
+{
+    this->sendComplete_cb_ = fn;
 }
 
 void Connection::setClose_cb(std::function<void(Connection *connection)> fn)

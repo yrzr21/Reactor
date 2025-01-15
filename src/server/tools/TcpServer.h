@@ -28,8 +28,12 @@ public:
 
     // 以下注册到 connection 中进行回调
     void onMessage(Connection *connection, std::string message); // 输入一条完整的报文进行处理, 此处选择添加报文头后发送回去
+    void sendComplete(Connection * connection);
     void closeConnection(Connection *connection);
     void errorConnection(Connection *connection);
+
+    // 以下注册到 Eventloop 进行回调
+    void epollTimeout(Eventloop* loop);
 };
 
 #endif // !TCPSERVER

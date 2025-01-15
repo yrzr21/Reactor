@@ -17,6 +17,7 @@ private:
     Channel *clientChannel_; // 管理, 析构函数中释放
 
     std::function<void(Connection *, std::string)> onmessage_cb_;
+    std::function<void(Connection *)> sendComplete_cb_;
     std::function<void(Connection *)> close_cb_;
     std::function<void(Connection *)> error_cb_;
 
@@ -32,6 +33,7 @@ public:
     uint16_t port() const;
 
     void setOnmessage_cb(std::function<void(Connection *, std::string)> fn);
+    void setSendComplete_cb(std::function<void(Connection *)> fn);
     void setClose_cb(std::function<void(Connection *)> fn);
     void setError_cb(std::function<void(Connection *)> fn);
 
