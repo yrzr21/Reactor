@@ -74,7 +74,6 @@ void Connection::onClose()
 {
     this->close_cb_(this);
 
-    printf("client(eventfd=%d) disconnected.\n", this->fd());
     // 以下不必要，因为tcpserver中关闭connection，connection会关闭socket，socket负责关闭fd
     // close(this->fd()); // 关闭客户端的fd。
 }
@@ -83,7 +82,6 @@ void Connection::onError()
 {
     this->error_cb_(this);
 
-    printf("client(eventfd=%d) error.\n", this->fd());
     // 以下不必要，因为tcpserver中关闭connection，connection会关闭socket，socket负责关闭fd
     // close(this->fd()); // 关闭客户端的fd。
 }
