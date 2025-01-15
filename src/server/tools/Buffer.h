@@ -9,11 +9,14 @@ private:
     std::string buffer_;
 
 public:
-    Buffer(/* args */);
+    Buffer();
     ~Buffer();
 
     void append(const char *data, size_t size);
     void append(const std::string &data, size_t size);
+    void appendMessage(const char *data, size_t size); // 自动添加4B长度报文头
+
+
     size_t size();
     const char *data();
     void clear();

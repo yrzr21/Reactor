@@ -36,7 +36,7 @@ void TcpServer::newConnection(Socket *clientSocket)
         this->newConnection_cb_(clientConnection);
 }
 
-void TcpServer::onMessage(Connection *connection, std::string message)
+void TcpServer::onMessage(Connection *connection, std::string& message)
 {
     if (this->onMessage_cb_)
         this->onMessage_cb_(connection, message);
@@ -76,7 +76,7 @@ void TcpServer::epollTimeout(Eventloop *loop)
 }
 
 void TcpServer::setNewConenctionCallback(std::function<void(Connection *)> fn) { this->newConnection_cb_ = fn; }
-void TcpServer::setonMessageCallback(std::function<void(Connection *, std::string)> fn) { this->onMessage_cb_ = fn; }
+void TcpServer::setonMessageCallback(std::function<void(Connection *, std::string&)> fn) { this->onMessage_cb_ = fn; }
 void TcpServer::setSendCompleteCallback(std::function<void(Connection *)> fn) { this->sendComplete_cb_ = fn; }
 void TcpServer::setCloseConnectionCallback(std::function<void(Connection *)> fn) { this->closeConnection_cb_ = fn; }
 void TcpServer::setErrorConnectionCallback(std::function<void(Connection *)> fn) { this->errorConnection_cb_ = fn; }

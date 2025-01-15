@@ -88,8 +88,7 @@ void Connection::onError()
 
 void Connection::send(const std::string &message)
 {
-    uint32_t size = message.size();
-    this->outputBuffer_.append(std::to_string(size) + message, 4 + size);
+    this->outputBuffer_.appendMessage(message.data(), message.size()); // 自动添加4B报文头
 
     // 注册写事件，在被channel回调的 onWritable 中发送数据
     this->clientChannel_->enableWriting();
@@ -110,7 +109,7 @@ uint16_t Connection::port() const
     return this->clientSocket_->port();
 }
 
-void Connection::setOnmessage_cb(std::function<void(Connection *, std::string)> fn)
+void Connection::setOnmessage_cb(std::function<void(Connection *, std::string &)> fn)
 {
     this->onmessage_cb_ = fn;
 }

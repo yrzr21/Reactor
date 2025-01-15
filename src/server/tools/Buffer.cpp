@@ -18,6 +18,12 @@ void Buffer::append(const std::string &data, size_t size)
     this->buffer_.append(data, 0, size);
 }
 
+void Buffer::appendMessage(const char *data, size_t size)
+{
+    this->buffer_.append((char *)&size, 4);
+    this->buffer_.append(data,size);
+}
+
 size_t Buffer::size()
 {
     return this->buffer_.size();

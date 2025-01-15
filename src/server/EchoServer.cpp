@@ -24,14 +24,13 @@ void EchoServer::HandleNewConnection(Connection *connection)
 {
     printf("accept client(fd=%d,ip=%s,port=%d) ok.\n", connection->fd(), connection->ip().c_str(), connection->port());
 }
-void EchoServer::HandleOnMessage(Connection *connection, std::string message)
+void EchoServer::HandleOnMessage(Connection *connection, std::string &message)
 {
     printf("recv(eventfd=%d):%s\n", connection->fd(), message.c_str());
 
-    // 经过一系列计算得到一个回应报文，此处仅在前面加一个reply, 并添加报文头
+    // 经过一系列计算得到一个回应报文，此处仅在前面加一个reply
     message = "reply: " + message;
-    message = std::to_string(message.size()) + message;
-    connection->send(message);
+    connection->send(message); 
 }
 void EchoServer::HandleSendComplete(Connection *connection)
 {

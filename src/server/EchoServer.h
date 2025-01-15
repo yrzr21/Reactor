@@ -16,7 +16,7 @@ public:
 
     // 以下注册到 tcpServer 中被回调
     void HandleNewConnection(Connection *connection);
-    void HandleOnMessage(Connection *connection, std::string message);
+    void HandleOnMessage(Connection *connection, std::string &message);
     void HandleSendComplete(Connection *connection);
     void HandleCloseConnection(Connection *connection);
     void HandleErrorConnection(Connection *connection);
