@@ -1,15 +1,16 @@
 #include "TcpServer.h"
 
-TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen, int nThreads)
-    : mainloop_(new Eventloop), pool_(new ThreadPool(nThreads))
+TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads)
+    : mainloop_(new Eventloop), pool_(new ThreadPool(nSubthreads, "I/O"))
 {
     this->mainloop_->setEpollTimtoutCallback(std::bind(&TcpServer::epollTimeout, this, std::placeholders::_1));
-    for (int i = 0; i < nThreads; i++)
+    for (int i = 0; i < nSubthreads; i++)
     {
         Eventloop *loop = new Eventloop;
         this->subloops_.push_back(loop);
         loop->setEpollTimtoutCallback(std::bind(&TcpServer::epollTimeout, this, std::placeholders::_1));
-        this->pool_->addTask(std::bind(&Eventloop::run, loop)); // 关联到线程池
+        this->pool_->addTask(std::bind(&Eventloop::run, loop),
+                             "Eventloop::run"); // 关联到线程池
     }
 
     this->acceptor_ = new Acceptor(ip, port, mainloop_, nListen);

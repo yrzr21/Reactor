@@ -31,7 +31,7 @@ private:
     std::function<void(Eventloop *)> epollTimeout_cb_;
 
 public:
-    TcpServer(const std::string &ip, uint16_t port, int nListen, int nThreads); // 初始化监听的 socket，初始化 servChannel
+    TcpServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads); // 初始化监听的 socket，初始化 servChannel
     ~TcpServer();
 
     void start(); // 开始监听，有客户端连接后启动事件循环。原文中仅作启动事件循环

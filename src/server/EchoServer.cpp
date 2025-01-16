@@ -1,6 +1,7 @@
 #include "EchoServer.h"
 
-EchoServer::EchoServer(const std::string &ip, uint16_t port, int nListen, int nThreads) : tcpServer_(ip, port, nListen, nThreads)
+EchoServer::EchoServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads, int nWorkThreads)
+    : tcpServer_(ip, port, nListen, nSubthreads), pool_(nWorkThreads, "work")
 {
     // 设置回调函数
     this->tcpServer_.setCloseConnectionCallback(std::bind(&EchoServer::HandleCloseConnection, this, std::placeholders::_1));
@@ -22,15 +23,15 @@ void EchoServer::start()
 
 void EchoServer::HandleNewConnection(Connection *connection)
 {
-    printf("%ld HandleNewConnection: accept client(fd=%d,ip=%s,port=%d) ok.\n", syscall(SYS_gettid), connection->fd(), connection->ip().c_str(), connection->port());
+    // printf("%ld HandleNewConnection: accept client(fd=%d,ip=%s,port=%d) ok.\n", syscall(SYS_gettid), connection->fd(), connection->ip().c_str(), connection->port());
 }
 void EchoServer::HandleOnMessage(Connection *connection, std::string &message)
 {
-    printf("%ld HandleOnMessage: recv(eventfd=%d):%s\n", syscall(SYS_gettid), connection->fd(), message.c_str());
+    // printf("%ld HandleOnMessage: recv(eventfd=%d):%s\n", syscall(SYS_gettid), connection->fd(), message.c_str());
 
-    // 经过一系列计算得到一个回应报文，此处仅在前面加一个reply
-    message = "reply: " + message;
-    connection->send(message);
+    // 添加到工作线程
+    this->pool_.addTask(std::bind(&EchoServer::OnMessage, this, connection, message),
+                        "EchoServer::OnMessage");
 }
 void EchoServer::HandleSendComplete(Connection *connection)
 {
@@ -47,4 +48,11 @@ void EchoServer::HandleErrorConnection(Connection *connection)
 void EchoServer::HandleEpollTimeout(Eventloop *loop)
 {
     printf("loop time out\n");
+}
+
+void EchoServer::OnMessage(Connection *connection, std::string &message)
+{
+    // 经过一系列计算得到一个回应报文，此处仅在前面加一个reply
+    message = "reply: " + message;
+    connection->send(message);
 }
