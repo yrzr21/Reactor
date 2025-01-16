@@ -1,14 +1,18 @@
 #ifndef CONNECTION
 #define CONNECTION
 #include <functional>
+#include <memory>
 #include "Socket.h"
 #include "Channel.h"
 #include "Buffer.h"
 
 class Eventloop;
 class Channel;
+class Connection;
 
-class Connection
+using conn_sptr = std::shared_ptr<Connection>;
+
+class Connection : public std::enable_shared_from_this<Connection>
 {
 private:
     Eventloop *loop_; // 被loop中epoll监视，不可delete loop
@@ -16,10 +20,10 @@ private:
     Socket *clientSocket_;   // 管理, 析构函数中释放
     Channel *clientChannel_; // 管理, 析构函数中释放
 
-    std::function<void(Connection *, std::string&)> onmessage_cb_;
-    std::function<void(Connection *)> sendComplete_cb_;
-    std::function<void(Connection *)> close_cb_;
-    std::function<void(Connection *)> error_cb_;
+    std::function<void(conn_sptr, std::string &)> onmessage_cb_;
+    std::function<void(conn_sptr)> sendComplete_cb_;
+    std::function<void(conn_sptr)> close_cb_;
+    std::function<void(conn_sptr)> error_cb_;
 
     Buffer inputBuffer_;
     Buffer outputBuffer_;
@@ -32,10 +36,10 @@ public:
     std::string ip() const;
     uint16_t port() const;
 
-    void setOnmessage_cb(std::function<void(Connection *, std::string&)> fn);
-    void setSendComplete_cb(std::function<void(Connection *)> fn);
-    void setClose_cb(std::function<void(Connection *)> fn);
-    void setError_cb(std::function<void(Connection *)> fn);
+    void setOnmessage_cb(std::function<void(conn_sptr, std::string &)> fn);
+    void setSendComplete_cb(std::function<void(conn_sptr)> fn);
+    void setClose_cb(std::function<void(conn_sptr)> fn);
+    void setError_cb(std::function<void(conn_sptr)> fn);
 
     // 以下为事件 handler, 需要注册到 channel 中被回调
     void onmessage();  // 读事件 handler，客户端发消息

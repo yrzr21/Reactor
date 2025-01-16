@@ -21,11 +21,11 @@ void EchoServer::start()
     this->tcpServer_.start();
 }
 
-void EchoServer::HandleNewConnection(Connection *connection)
+void EchoServer::HandleNewConnection(conn_sptr connection)
 {
     // printf("%ld HandleNewConnection: accept client(fd=%d,ip=%s,port=%d) ok.\n", syscall(SYS_gettid), connection->fd(), connection->ip().c_str(), connection->port());
 }
-void EchoServer::HandleOnMessage(Connection *connection, std::string &message)
+void EchoServer::HandleOnMessage(conn_sptr connection, std::string &message)
 {
     // printf("%ld HandleOnMessage: recv(eventfd=%d):%s\n", syscall(SYS_gettid), connection->fd(), message.c_str());
 
@@ -33,15 +33,15 @@ void EchoServer::HandleOnMessage(Connection *connection, std::string &message)
     this->pool_.addTask(std::bind(&EchoServer::OnMessage, this, connection, message),
                         "EchoServer::OnMessage");
 }
-void EchoServer::HandleSendComplete(Connection *connection)
+void EchoServer::HandleSendComplete(conn_sptr connection)
 {
     printf("send complete\n");
 }
-void EchoServer::HandleCloseConnection(Connection *connection)
+void EchoServer::HandleCloseConnection(conn_sptr connection)
 {
     printf("client(eventfd=%d) disconnected.\n", connection->fd());
 }
-void EchoServer::HandleErrorConnection(Connection *connection)
+void EchoServer::HandleErrorConnection(conn_sptr connection)
 {
     printf("client(eventfd=%d) error.\n", connection->fd());
 }
@@ -50,7 +50,7 @@ void EchoServer::HandleEpollTimeout(Eventloop *loop)
     printf("loop time out\n");
 }
 
-void EchoServer::OnMessage(Connection *connection, std::string &message)
+void EchoServer::OnMessage(conn_sptr connection, std::string &message)
 {
     // 经过一系列计算得到一个回应报文，此处仅在前面加一个reply
     message = "reply: " + message;

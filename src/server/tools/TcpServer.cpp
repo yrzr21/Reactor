@@ -21,8 +21,12 @@ TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen, int nSub
 TcpServer::~TcpServer()
 {
     delete this->acceptor_;
-    for (auto &connection : this->connections_)
-        delete connection.second;
+    // for (auto &connection : this->connections_)
+    //     delete connection.second;
+    delete mainloop_;
+    for (auto &loop : this->subloops_)
+        delete loop;
+    delete pool_;
 }
 
 void TcpServer::start()
@@ -34,7 +38,7 @@ void TcpServer::start()
 void TcpServer::newConnection(Socket *clientSocket)
 {
     int loopNo = clientSocket->fd() % this->pool_->size();
-    Connection *clientConnection = new Connection(this->subloops_[loopNo], clientSocket);
+    conn_sptr clientConnection(new Connection(this->subloops_[loopNo], clientSocket));
     clientConnection->setSendComplete_cb(std::bind(&TcpServer::sendComplete, this, std::placeholders::_1));
     clientConnection->setOnmessage_cb(std::bind(&TcpServer::onMessage, this, std::placeholders::_1, std::placeholders::_2));
     clientConnection->setClose_cb(std::bind(&TcpServer::closeConnection, this, std::placeholders::_1));
@@ -46,13 +50,13 @@ void TcpServer::newConnection(Socket *clientSocket)
         this->newConnection_cb_(clientConnection);
 }
 
-void TcpServer::onMessage(Connection *connection, std::string &message)
+void TcpServer::onMessage(conn_sptr connection, std::string &message)
 {
     if (this->onMessage_cb_)
         this->onMessage_cb_(connection, message);
 }
 
-void TcpServer::sendComplete(Connection *connection)
+void TcpServer::sendComplete(conn_sptr connection)
 {
     if (this->sendComplete_cb_)
         this->sendComplete_cb_(connection);
@@ -60,22 +64,22 @@ void TcpServer::sendComplete(Connection *connection)
     // 以及其他业务需求代码
 }
 
-void TcpServer::closeConnection(Connection *connection)
+void TcpServer::closeConnection(conn_sptr connection)
 {
     if (this->closeConnection_cb_)
         this->closeConnection_cb_(connection);
 
     this->connections_.erase(connection->fd());
-    delete this->connections_[connection->fd()];
+    // delete this->connections_[connection->fd()];
 }
 
-void TcpServer::errorConnection(Connection *connection)
+void TcpServer::errorConnection(conn_sptr connection)
 {
     if (this->errorConnection_cb_)
         this->errorConnection_cb_(connection);
 
     this->connections_.erase(connection->fd());
-    delete this->connections_[connection->fd()];
+    // delete this->connections_[connection->fd()];
 }
 
 void TcpServer::epollTimeout(Eventloop *loop)
@@ -85,9 +89,9 @@ void TcpServer::epollTimeout(Eventloop *loop)
     // 以及其他业务需求代码
 }
 
-void TcpServer::setNewConenctionCallback(std::function<void(Connection *)> fn) { this->newConnection_cb_ = fn; }
-void TcpServer::setonMessageCallback(std::function<void(Connection *, std::string &)> fn) { this->onMessage_cb_ = fn; }
-void TcpServer::setSendCompleteCallback(std::function<void(Connection *)> fn) { this->sendComplete_cb_ = fn; }
-void TcpServer::setCloseConnectionCallback(std::function<void(Connection *)> fn) { this->closeConnection_cb_ = fn; }
-void TcpServer::setErrorConnectionCallback(std::function<void(Connection *)> fn) { this->errorConnection_cb_ = fn; }
+void TcpServer::setNewConenctionCallback(std::function<void(conn_sptr)> fn) { this->newConnection_cb_ = fn; }
+void TcpServer::setonMessageCallback(std::function<void(conn_sptr, std::string &)> fn) { this->onMessage_cb_ = fn; }
+void TcpServer::setSendCompleteCallback(std::function<void(conn_sptr)> fn) { this->sendComplete_cb_ = fn; }
+void TcpServer::setCloseConnectionCallback(std::function<void(conn_sptr)> fn) { this->closeConnection_cb_ = fn; }
+void TcpServer::setErrorConnectionCallback(std::function<void(conn_sptr)> fn) { this->errorConnection_cb_ = fn; }
 void TcpServer::setEpollTimeoutCallback(std::function<void(Eventloop *)> fn) { this->epollTimeout_cb_ = fn; }

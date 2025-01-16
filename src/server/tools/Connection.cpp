@@ -27,29 +27,23 @@ void Connection::onmessage()
         bzero(&buffer, sizeof(buffer));
         ssize_t nread = read(this->clientChannel_->fd(), buffer, sizeof(buffer));
         if (nread > 0) // 成功的读取到了数据。
-        {
-            // 把接收到的报文内容原封不动的发回去。
             this->inputBuffer_.append(buffer, nread);
-
-            // send(this->clientChannel_->fd(), buffer, strlen(buffer), 0);
-        }
         else if (nread == -1 && errno == EINTR) // 读取数据的时候被信号中断，继续读取。
             continue;
         else if (nread == -1 && ((errno == EAGAIN) || (errno == EWOULDBLOCK))) // 全部的数据已读取完毕。
         {
-            this->outputBuffer_ = this->inputBuffer_; // 现在似乎和它没关系
             while (true)
             {
                 std::string message = this->inputBuffer_.nextMessage();
                 if (message.size() == 0) // 不完整报文
                     break;
-                this->onmessage_cb_(this, message); // 回调 tcpServer onmessage 进行处理
+                this->onmessage_cb_(shared_from_this(), message); // 回调 tcpServer onmessage 进行处理
             }
             break;
         }
         else if (nread == 0) // 客户端连接已断开。
         {
-            this->close_cb_(this);
+            this->close_cb_(shared_from_this());
             break;
         }
     }
@@ -66,13 +60,13 @@ void Connection::onWritable()
     if (this->outputBuffer_.size() == 0)
     {
         this->clientChannel_->disableWriting();
-        this->sendComplete_cb_(this);
+        this->sendComplete_cb_(shared_from_this());
     }
 }
 
 void Connection::onClose()
 {
-    this->close_cb_(this);
+    this->close_cb_(shared_from_this());
 
     // 以下不必要，因为tcpserver中关闭connection，connection会关闭socket，socket负责关闭fd
     // close(this->fd()); // 关闭客户端的fd。
@@ -80,7 +74,7 @@ void Connection::onClose()
 
 void Connection::onError()
 {
-    this->error_cb_(this);
+    this->error_cb_(shared_from_this());
 
     // 以下不必要，因为tcpserver中关闭connection，connection会关闭socket，socket负责关闭fd
     // close(this->fd()); // 关闭客户端的fd。
@@ -109,22 +103,22 @@ uint16_t Connection::port() const
     return this->clientSocket_->port();
 }
 
-void Connection::setOnmessage_cb(std::function<void(Connection *, std::string &)> fn)
+void Connection::setOnmessage_cb(std::function<void(conn_sptr, std::string &)> fn)
 {
     this->onmessage_cb_ = fn;
 }
 
-void Connection::setSendComplete_cb(std::function<void(Connection *)> fn)
+void Connection::setSendComplete_cb(std::function<void(conn_sptr)> fn)
 {
     this->sendComplete_cb_ = fn;
 }
 
-void Connection::setClose_cb(std::function<void(Connection *connection)> fn)
+void Connection::setClose_cb(std::function<void(conn_sptr connection)> fn)
 {
     this->close_cb_ = fn;
 }
 
-void Connection::setError_cb(std::function<void(Connection *connection)> fn)
+void Connection::setError_cb(std::function<void(conn_sptr connection)> fn)
 {
     this->error_cb_ = fn;
 }

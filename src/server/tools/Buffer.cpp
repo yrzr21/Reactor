@@ -21,7 +21,8 @@ void Buffer::append(const std::string &data, size_t size)
 void Buffer::appendMessage(const char *data, size_t size)
 {
     this->buffer_.append((char *)&size, 4);
-    this->buffer_.append(data,size);
+    this->buffer_.append(data, size);
+    printf("append message, buffer = %s\n", this->buffer_.c_str());
 }
 
 size_t Buffer::size()

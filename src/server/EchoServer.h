@@ -19,15 +19,15 @@ public:
     void start(); // 开始监听，有客户端连接后启动事件循环。原文中仅作启动事件循环
 
     // 以下注册到 tcpServer 中被回调
-    void HandleNewConnection(Connection *connection);
-    void HandleOnMessage(Connection *connection, std::string &message);
-    void HandleSendComplete(Connection *connection);
-    void HandleCloseConnection(Connection *connection);
-    void HandleErrorConnection(Connection *connection);
+    void HandleNewConnection(conn_sptr connection);
+    void HandleOnMessage(conn_sptr connection, std::string &message);
+    void HandleSendComplete(conn_sptr connection);
+    void HandleCloseConnection(conn_sptr connection);
+    void HandleErrorConnection(conn_sptr connection);
     void HandleEpollTimeout(Eventloop *loop);
 
     // 以下函数用于工作线程进行业务计算
-    void OnMessage(Connection *connection, std::string &message);
+    void OnMessage(conn_sptr connection, std::string &message);
 
 };
 
