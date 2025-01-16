@@ -1,6 +1,8 @@
 #ifndef ECHOSERVER
 #define ECHOSERVER
 #include <string>
+#include <unistd.h>
+#include <sys/syscall.h>
 #include "tools/TcpServer.h"
 
 class EchoServer
@@ -9,7 +11,7 @@ private:
     TcpServer tcpServer_;
 
 public:
-    EchoServer(const std::string &ip, uint16_t port, int maxN);
+    EchoServer(const std::string &ip, uint16_t port, int nListen, int nThreads);
     ~EchoServer();
 
     void start(); // 开始监听，有客户端连接后启动事件循环。原文中仅作启动事件循环

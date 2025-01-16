@@ -3,16 +3,21 @@
 #include <string>
 #include <map>
 #include <functional>
+#include <vector>
 #include "InetAddress.h"
 #include "Socket.h"
 #include "Eventloop.h"
 #include "Acceptor.h"
 #include "Connection.h"
+#include "ThreadPool.h"
 
 class TcpServer
 {
 private:
-    Eventloop loop_;     // 多个，暂时一个
+    Eventloop *mainloop_;
+    std::vector<Eventloop *> subloops_;
+    ThreadPool *pool_;
+
     Acceptor *acceptor_; // 一个server一个acceptor
 
     std::map<int, Connection *> connections_;
@@ -26,7 +31,7 @@ private:
     std::function<void(Eventloop *)> epollTimeout_cb_;
 
 public:
-    TcpServer(const std::string &ip, uint16_t port, int maxN); // 初始化监听的 socket，初始化 servChannel
+    TcpServer(const std::string &ip, uint16_t port, int nListen, int nThreads); // 初始化监听的 socket，初始化 servChannel
     ~TcpServer();
 
     void start(); // 开始监听，有客户端连接后启动事件循环。原文中仅作启动事件循环

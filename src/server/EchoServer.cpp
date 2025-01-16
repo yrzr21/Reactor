@@ -1,6 +1,6 @@
 #include "EchoServer.h"
 
-EchoServer::EchoServer(const std::string &ip, uint16_t port, int maxN) : tcpServer_(ip, port, maxN)
+EchoServer::EchoServer(const std::string &ip, uint16_t port, int nListen, int nThreads) : tcpServer_(ip, port, nListen, nThreads)
 {
     // 设置回调函数
     this->tcpServer_.setCloseConnectionCallback(std::bind(&EchoServer::HandleCloseConnection, this, std::placeholders::_1));
@@ -22,15 +22,15 @@ void EchoServer::start()
 
 void EchoServer::HandleNewConnection(Connection *connection)
 {
-    printf("accept client(fd=%d,ip=%s,port=%d) ok.\n", connection->fd(), connection->ip().c_str(), connection->port());
+    printf("%ld HandleNewConnection: accept client(fd=%d,ip=%s,port=%d) ok.\n", syscall(SYS_gettid), connection->fd(), connection->ip().c_str(), connection->port());
 }
 void EchoServer::HandleOnMessage(Connection *connection, std::string &message)
 {
-    printf("recv(eventfd=%d):%s\n", connection->fd(), message.c_str());
+    printf("%ld HandleOnMessage: recv(eventfd=%d):%s\n", syscall(SYS_gettid), connection->fd(), message.c_str());
 
     // 经过一系列计算得到一个回应报文，此处仅在前面加一个reply
     message = "reply: " + message;
-    connection->send(message); 
+    connection->send(message);
 }
 void EchoServer::HandleSendComplete(Connection *connection)
 {

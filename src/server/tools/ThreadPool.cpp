@@ -1,13 +1,13 @@
-#include "ThreadPoll.h"
+#include "ThreadPool.h"
 
 // 启动threadnum个线程，并让他们阻塞在 wait 上
-ThreadPoll::ThreadPoll(size_t nThreads) : isStop_(false)
+ThreadPool::ThreadPool(size_t nThreads) : isStop_(false)
 {
     for (size_t ii = 0; ii < nThreads; ii++)
-        threads_.emplace_back(std::bind(&ThreadPoll::thread_func, this));
+        threads_.emplace_back(std::bind(&ThreadPool::thread_func, this));
 }
 
-ThreadPoll::~ThreadPoll()
+ThreadPool::~ThreadPool()
 {
     this->isStop_ = true;
     this->condition_.notify_all();
@@ -15,7 +15,7 @@ ThreadPoll::~ThreadPoll()
         t.join();
 }
 
-void ThreadPoll::addTask(std::function<void()> task)
+void ThreadPool::addTask(std::function<void()> task)
 {
     {
         lk lock(this->mutex_);
@@ -24,8 +24,13 @@ void ThreadPoll::addTask(std::function<void()> task)
     this->condition_.notify_one();
 }
 
+size_t ThreadPool::size()
+{
+    return this->threads_.size();
+}
+
 // 线程的启动函数，启动后阻塞在 wait 上
-void ThreadPoll::thread_func() // 用 lambda 函数也可以
+void ThreadPool::thread_func() // 用 lambda 函数也可以
 {
     printf("create thread(%d).\n", syscall(SYS_gettid)); // 显示线程ID。os分配的唯一id
     // std::cout << "子线程：" << std::this_thread::get_id() << std::endl; // C++11库分配的id

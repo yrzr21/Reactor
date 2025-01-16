@@ -11,7 +11,7 @@
 #include <sys/syscall.h> // syscall
 #include <iostream>
 
-class ThreadPoll
+class ThreadPool
 {
     using lk = std::unique_lock<std::mutex>;
 
@@ -28,10 +28,11 @@ private:
     void thread_func();
 
 public:
-    ThreadPoll(size_t nThreads);
-    ~ThreadPoll();
+    ThreadPool(size_t nThreads);
+    ~ThreadPool();
 
     void addTask(std::function<void()> task);
+    size_t size();
 };
 
 #endif // !THREADPOOL
