@@ -26,6 +26,7 @@ public:
     ~Epoll(); // 在析构函数中关闭epollfd_。
 
     void updatechannel(Channel *ch);               // 把channel中的event加入红黑树中或修改channel
+    void removeChannel(Channel* ch);
     std::vector<Channel *> loop(int timeout = -1); // 运行epoll_wait()，等待事件的发生，已发生的事件用vector容器返回。
 
     // void addfd(int fd, uint32_t op);                 // 把fd和它需要监视的事件添加到红黑树上。

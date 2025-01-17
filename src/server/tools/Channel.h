@@ -45,6 +45,8 @@ public:
     void disableReading(); // 取消监视fd_的读事件。
     void enableWriting();  // 监视fd_的写事件。
     void disableWriting(); // 取消监视fd_的写事件。
+    void diableAll();      // 取消监视所有事件
+    void remove();         // 从epoll上移除
 
     void setinepoll();            // 把inepoll_成员的值设置为true。
     void setrevents(uint32_t ev); // 设置revents_成员的值为参数ev。

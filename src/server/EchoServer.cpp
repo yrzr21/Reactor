@@ -54,5 +54,7 @@ void EchoServer::OnMessage(conn_sptr connection, std::string &message)
 {
     // 经过一系列计算得到一个回应报文，此处仅在前面加一个reply
     message = "reply: " + message;
+    sleep(2);
+    printf("处理完业务后，将使用connecion对象。\n");
     connection->send(message);
 }

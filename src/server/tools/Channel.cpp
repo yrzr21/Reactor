@@ -76,6 +76,18 @@ void Channel::disableWriting()
     loop_->updateChannel(this);
 }
 
+void Channel::diableAll()
+{
+    this->events_ = 0;
+    this->loop_->updateChannel(this);
+}
+
+void Channel::remove()
+{
+    this->diableAll();
+    this->loop_->removeChannel(this);
+}
+
 void Channel::setinepoll() // 把inepoll_成员的值设置为true。
 {
     inepoll_ = true;

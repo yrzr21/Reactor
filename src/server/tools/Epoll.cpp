@@ -54,6 +54,20 @@ void Epoll::updatechannel(Channel *ch)
     }
 }
 
+void Epoll::removeChannel(Channel *ch)
+{
+    printf("remove Channel\n");
+    sleep(1);
+    if (!ch->inpoll())
+        return;
+
+    if (epoll_ctl(epollfd_, EPOLL_CTL_DEL, ch->fd(), 0) == -1)
+    {
+        perror("epoll_ctl() failed.\n");
+        exit(-1);
+    }
+}
+
 // 运行epoll_wait()，等待事件的发生，已发生的事件用vector容器返回。
 std::vector<Channel *> Epoll::loop(int timeout)
 {
@@ -71,13 +85,12 @@ std::vector<Channel *> Epoll::loop(int timeout)
         return rChannels;
 
     // 如果infds>0，表示有事件发生的fd的数量。
-    for (int ii = 0; ii < infds; ii++)  // 事件
+    for (int ii = 0; ii < infds; ii++) // 事件
     {
-        Channel * ch = (Channel *)events_[ii].data.ptr;
+        Channel *ch = (Channel *)events_[ii].data.ptr;
         ch->setrevents(events_[ii].events);
         rChannels.push_back(ch);
     }
-
 
     return rChannels;
 }

@@ -2,6 +2,7 @@
 #define CONNECTION
 #include <functional>
 #include <memory>
+#include <atomic>
 #include "Socket.h"
 #include "Channel.h"
 #include "Buffer.h"
@@ -27,6 +28,8 @@ private:
 
     Buffer inputBuffer_;
     Buffer outputBuffer_;
+
+    std::atomic_bool isDisconnected_;
 
 public:
     Connection(Eventloop *loop, Socket *clientSocket);

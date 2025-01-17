@@ -19,6 +19,7 @@ public:
 
     void run();
     void updateChannel(Channel *ch); // 把channel中的event加入红黑树中或修改channel
+    void removeChannel(Channel* ch);
 
     void setEpollTimtoutCallback(std::function<void(Eventloop*)> fn);
 };

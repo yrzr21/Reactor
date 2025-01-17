@@ -30,6 +30,11 @@ void Eventloop::updateChannel(Channel *ch)
     this->ep_->updatechannel(ch);
 }
 
+void Eventloop::removeChannel(Channel *ch)
+{
+    this->ep_->removeChannel(ch);
+}
+
 void Eventloop::setEpollTimtoutCallback(std::function<void(Eventloop *)> fn)
 {
     this->epollTimeout_cb_ = fn;

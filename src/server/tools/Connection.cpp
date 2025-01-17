@@ -1,11 +1,12 @@
 #include "Connection.h"
 
 Connection::Connection(Eventloop *loop, Socket *clientSocket)
-    : loop_(loop), clientSocket_(clientSocket)
+    : loop_(loop), clientSocket_(clientSocket), isDisconnected_(false)
 
 {
-    this->clientChannel_ = new Channel(this->loop_, clientSocket->fd());  // 属于同一个事件循环
-    this->clientChannel_->enablereading(), this->clientChannel_->useet(); // 监视读，边缘触发
+    this->clientChannel_ = new Channel(this->loop_, clientSocket->fd()); // 属于同一个事件循环
+    // this->clientChannel_->enablereading(), this->clientChannel_->useet(); // 监视读，边缘触发
+    this->clientChannel_->enablereading(); // 监视读，边缘触发
 
     this->clientChannel_->setreadcallback(std::bind(&Connection::onmessage, this));
     this->clientChannel_->setWritablecallback(std::bind(&Connection::onWritable, this));
@@ -17,6 +18,7 @@ Connection::~Connection()
 {
     delete clientSocket_;
     delete clientChannel_;
+    printf("已析构\n");
 }
 
 void Connection::onmessage()
@@ -43,6 +45,7 @@ void Connection::onmessage()
         }
         else if (nread == 0) // 客户端连接已断开。
         {
+            this->clientChannel_->remove();
             this->close_cb_(shared_from_this());
             break;
         }
@@ -66,6 +69,8 @@ void Connection::onWritable()
 
 void Connection::onClose()
 {
+    this->isDisconnected_ = true;
+    this->clientChannel_->remove();
     this->close_cb_(shared_from_this());
 
     // 以下不必要，因为tcpserver中关闭connection，connection会关闭socket，socket负责关闭fd
@@ -74,6 +79,8 @@ void Connection::onClose()
 
 void Connection::onError()
 {
+    this->isDisconnected_ = true;
+    this->clientChannel_->remove();
     this->error_cb_(shared_from_this());
 
     // 以下不必要，因为tcpserver中关闭connection，connection会关闭socket，socket负责关闭fd
@@ -82,6 +89,11 @@ void Connection::onError()
 
 void Connection::send(const std::string &message)
 {
+    if (this->isDisconnected_)
+    {
+        printf("直接断开\n");
+        return;
+    }
     this->outputBuffer_.appendMessage(message.data(), message.size()); // 自动添加4B报文头
 
     // 注册写事件，在被channel回调的 onWritable 中发送数据
