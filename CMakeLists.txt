@@ -31,6 +31,7 @@ add_custom_command(TARGET server POST_BUILD
 #     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:test> ${PROJECT_SOURCE_DIR}/debug/)
 
 
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 
 
 

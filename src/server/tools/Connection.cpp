@@ -1,12 +1,11 @@
 #include "Connection.h"
 
-Connection::Connection(Eventloop *loop, Socket *clientSocket)
-    : loop_(loop), clientSocket_(clientSocket), isDisconnected_(false)
+Connection::Connection(Eventloop *loop, std::unique_ptr<Socket> clientSocket)
+    : loop_(loop), clientSocket_(std::move(clientSocket)), isDisconnected_(false),
+      clientChannel_(new Channel(this->loop_, clientSocket_->fd()))
 
 {
-    this->clientChannel_ = new Channel(this->loop_, clientSocket->fd()); // 属于同一个事件循环
-    // this->clientChannel_->enablereading(), this->clientChannel_->useet(); // 监视读，边缘触发
-    this->clientChannel_->enablereading(); // 监视读，边缘触发
+    this->clientChannel_->enablereading(), this->clientChannel_->useet(); // 监视读，边缘触发
 
     this->clientChannel_->setreadcallback(std::bind(&Connection::onmessage, this));
     this->clientChannel_->setWritablecallback(std::bind(&Connection::onWritable, this));
@@ -16,8 +15,6 @@ Connection::Connection(Eventloop *loop, Socket *clientSocket)
 
 Connection::~Connection()
 {
-    delete clientSocket_;
-    delete clientChannel_;
     // printf("已析构\n");
 }
 

@@ -6,8 +6,6 @@ Eventloop::Eventloop() : ep_(new Epoll)
 
 Eventloop::~Eventloop()
 {
-    if (ep_ != nullptr)
-        delete ep_;
 }
 
 void Eventloop::run()

@@ -1,50 +1,41 @@
 #include "TcpServer.h"
 
 TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads)
-    : mainloop_(new Eventloop), pool_(new ThreadPool(nSubthreads, "I/O"))
+    : mainloop_(new Eventloop), pool_(nSubthreads, "I/O"),
+      acceptor_(ip, port, mainloop_.get(), nListen)
 {
     this->mainloop_->setEpollTimtoutCallback(std::bind(&TcpServer::epollTimeout, this, std::placeholders::_1));
     for (int i = 0; i < nSubthreads; i++)
     {
-        Eventloop *loop = new Eventloop;
-        this->subloops_.push_back(loop);
+        std::unique_ptr<Eventloop> loop(new Eventloop);
         loop->setEpollTimtoutCallback(std::bind(&TcpServer::epollTimeout, this, std::placeholders::_1));
-        this->pool_->addTask(std::bind(&Eventloop::run, loop),
-                             "Eventloop::run"); // 关联到线程池
+        this->pool_.addTask(std::bind(&Eventloop::run, loop.get()),
+                            "Eventloop::run"); // 关联到线程池
+        this->subloops_.push_back(std::move(loop));
     }
 
-    this->acceptor_ = new Acceptor(ip, port, mainloop_, nListen);
-    this->acceptor_->setNewConnection_cb(
+    this->acceptor_.setNewConnection_cb(
         std::bind(&TcpServer::newConnection, this, std::placeholders::_1));
 }
 
-TcpServer::~TcpServer()
-{
-    delete this->acceptor_;
-    // for (auto &connection : this->connections_)
-    //     delete connection.second;
-    delete mainloop_;
-    for (auto &loop : this->subloops_)
-        delete loop;
-    delete pool_;
-}
+TcpServer::~TcpServer() {}
 
 void TcpServer::start()
 {
-    this->acceptor_->listen();
+    this->acceptor_.listen();
     this->mainloop_->run();
 }
 
-void TcpServer::newConnection(Socket *clientSocket)
+void TcpServer::newConnection(std::unique_ptr<Socket> clientSocket)
 {
-    int loopNo = clientSocket->fd() % this->pool_->size();
-    conn_sptr clientConnection(new Connection(this->subloops_[loopNo], clientSocket));
+    int loopNo = clientSocket->fd() % this->pool_.size();
+    conn_sptr clientConnection(new Connection(this->subloops_[loopNo].get(), std::move(clientSocket)));
     clientConnection->setSendComplete_cb(std::bind(&TcpServer::sendComplete, this, std::placeholders::_1));
     clientConnection->setOnmessage_cb(std::bind(&TcpServer::onMessage, this, std::placeholders::_1, std::placeholders::_2));
     clientConnection->setClose_cb(std::bind(&TcpServer::closeConnection, this, std::placeholders::_1));
     clientConnection->setError_cb(std::bind(&TcpServer::errorConnection, this, std::placeholders::_1));
 
-    this->connections_[clientSocket->fd()] = clientConnection;
+    this->connections_[clientConnection->fd()] = clientConnection;
 
     if (this->newConnection_cb_)
         this->newConnection_cb_(clientConnection);

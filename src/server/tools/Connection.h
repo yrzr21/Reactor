@@ -18,8 +18,8 @@ class Connection : public std::enable_shared_from_this<Connection>
 private:
     Eventloop *loop_; // 被loop中epoll监视，不可delete loop
 
-    Socket *clientSocket_;   // 管理, 析构函数中释放
-    Channel *clientChannel_; // 管理, 析构函数中释放
+    std::unique_ptr<Socket> clientSocket_;  
+    std::unique_ptr<Channel> clientChannel_; 
 
     std::function<void(conn_sptr, std::string &)> onmessage_cb_;
     std::function<void(conn_sptr)> sendComplete_cb_;
@@ -32,7 +32,7 @@ private:
     std::atomic_bool isDisconnected_;
 
 public:
-    Connection(Eventloop *loop, Socket *clientSocket);
+    Connection(Eventloop *loop, std::unique_ptr<Socket> clientSocket);
     ~Connection();
 
     int fd() const;

@@ -3,6 +3,7 @@
 #include <string>
 #include <map>
 #include <functional>
+#include <memory>
 #include <vector>
 #include "InetAddress.h"
 #include "Socket.h"
@@ -14,11 +15,11 @@
 class TcpServer
 {
 private:
-    Eventloop *mainloop_;
-    std::vector<Eventloop *> subloops_;
-    ThreadPool *pool_;
+    std::unique_ptr<Eventloop> mainloop_;
+    std::vector<std::unique_ptr<Eventloop>> subloops_;
+    ThreadPool pool_;
 
-    Acceptor *acceptor_; // 一个server一个acceptor
+    Acceptor acceptor_; // 一个server一个acceptor
 
     std::map<int, conn_sptr> connections_;
 
@@ -37,7 +38,7 @@ public:
     void start(); // 开始监听，有客户端连接后启动事件循环。原文中仅作启动事件循环
 
     // 注册到 acceptor 中进行回调
-    void newConnection(Socket *clientSocket);
+    void newConnection(std::unique_ptr<Socket> clientSocket);
 
     // 以下注册到 connection 中进行回调
     void onMessage(conn_sptr connection, std::string &message); // 输入一条完整的报文进行处理, 此处选择添加报文头后发送回去
