@@ -35,26 +35,26 @@ void EchoServer::HandleOnMessage(conn_sptr connection, std::string &message)
 }
 void EchoServer::HandleSendComplete(conn_sptr connection)
 {
-    printf("send complete\n");
+    // printf("send complete\n");
 }
 void EchoServer::HandleCloseConnection(conn_sptr connection)
 {
-    printf("client(eventfd=%d) disconnected.\n", connection->fd());
+    // printf("client(eventfd=%d) disconnected.\n", connection->fd());
 }
 void EchoServer::HandleErrorConnection(conn_sptr connection)
 {
-    printf("client(eventfd=%d) error.\n", connection->fd());
+    // printf("client(eventfd=%d) error.\n", connection->fd());
 }
 void EchoServer::HandleEpollTimeout(Eventloop *loop)
 {
-    printf("loop time out\n");
+    // printf("loop time out\n");
 }
 
 void EchoServer::OnMessage(conn_sptr connection, std::string &message)
 {
     // 经过一系列计算得到一个回应报文，此处仅在前面加一个reply
     message = "reply: " + message;
-    sleep(2);
-    printf("处理完业务后，将使用connecion对象。\n");
+    // sleep(2);
+    // printf("处理完业务后，将使用connecion对象。\n");
     connection->send(message);
 }

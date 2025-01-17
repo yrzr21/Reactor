@@ -18,7 +18,7 @@ Connection::~Connection()
 {
     delete clientSocket_;
     delete clientChannel_;
-    printf("已析构\n");
+    // printf("已析构\n");
 }
 
 void Connection::onmessage()
@@ -91,7 +91,7 @@ void Connection::send(const std::string &message)
 {
     if (this->isDisconnected_)
     {
-        printf("直接断开\n");
+        // printf("直接断开\n");
         return;
     }
     this->outputBuffer_.appendMessage(message.data(), message.size()); // 自动添加4B报文头

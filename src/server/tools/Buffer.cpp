@@ -22,7 +22,7 @@ void Buffer::appendMessage(const char *data, size_t size)
 {
     this->buffer_.append((char *)&size, 4);
     this->buffer_.append(data, size);
-    printf("append message, buffer = %s\n", this->buffer_.c_str());
+    // printf("append message, buffer = %s\n", this->buffer_.c_str()); // 由于最开始的是一个4B整数，开头也许是0，所以无法显示消息，可能需要调整
 }
 
 size_t Buffer::size()

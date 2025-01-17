@@ -56,7 +56,7 @@ void Epoll::updatechannel(Channel *ch)
 
 void Epoll::removeChannel(Channel *ch)
 {
-    printf("remove Channel\n");
+    // printf("remove Channel\n");
     sleep(1);
     if (!ch->inpoll())
         return;

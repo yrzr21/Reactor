@@ -42,7 +42,7 @@ size_t ThreadPool::size()
 // 线程的启动函数，启动后阻塞在 wait 上
 void ThreadPool::thread_func() // 用 lambda 函数也可以
 {
-    printf("create %s thread(%ld).\n", this->threadType_.c_str(), syscall(SYS_gettid)); // 显示线程ID。os分配的唯一id
+    // printf("create %s thread(%ld).\n", this->threadType_.c_str(), syscall(SYS_gettid)); // 显示线程ID。os分配的唯一id
     // std::cout << "子线程：" << std::this_thread::get_id() << std::endl; // C++11库分配的id
 
     while (isStop_ == false) // 判断执不执行
@@ -63,7 +63,7 @@ void ThreadPool::thread_func() // 用 lambda 函数也可以
             this->tasksWithName_.pop();
         }
 
-        printf("%s thread %ld excecutes task %s.\n", this->threadType_.c_str(), syscall(SYS_gettid), task.second.c_str());
+        // printf("%s thread %ld excecutes task %s.\n", this->threadType_.c_str(), syscall(SYS_gettid), task.second.c_str());
         task.first(); // 执行
     }
 }
