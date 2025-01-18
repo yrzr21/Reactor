@@ -84,14 +84,26 @@ void Connection::onError()
     // close(this->fd()); // 关闭客户端的fd。
 }
 
-void Connection::send(const std::string &message)
+void Connection::send(std::string &&message)
 {
     if (this->isDisconnected_)
     {
         // printf("直接断开\n");
         return;
     }
-    this->outputBuffer_.appendMessage(message.data(), message.size()); // 自动添加4B报文头
+
+    // 难以判定生命周期, 故使用智能指针
+    std::shared_ptr<std::string> message_ptr(new std::string(std::move(message)));
+    if (this->loop_->isInLoop())
+        this->sendInIO(message_ptr); // 0工作线程时会用到这个情况
+    else
+        this->loop_->enqueueTask(std::bind(&Connection::sendInIO, this, message_ptr));
+}
+
+void Connection::sendInIO(std::shared_ptr<std::string> message)
+{
+    // printf("sendInIO: current thread: %ld\n", syscall(SYS_gettid));
+    this->outputBuffer_.appendMessage(message->data(), message->size()); // 自动添加4B报文头
 
     // 注册写事件，在被channel回调的 onWritable 中发送数据
     this->clientChannel_->enableWriting();

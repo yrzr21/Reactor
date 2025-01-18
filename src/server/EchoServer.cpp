@@ -29,9 +29,11 @@ void EchoServer::HandleOnMessage(conn_sptr connection, std::string &message)
 {
     // printf("%ld HandleOnMessage: recv(eventfd=%d):%s\n", syscall(SYS_gettid), connection->fd(), message.c_str());
 
-    // 添加到工作线程
-    this->pool_.addTask(std::bind(&EchoServer::OnMessage, this, connection, message),
-                        "EchoServer::OnMessage");
+    if (this->pool_.size() == 0)
+        this->OnMessage(connection, message);
+    else // 添加到工作线程。原shared_ptr计数+1，此前的级联调用中计数不变
+        this->pool_.addTask(std::bind(&EchoServer::OnMessage, this, connection, message),
+                            "EchoServer::OnMessage");
 }
 void EchoServer::HandleSendComplete(conn_sptr connection)
 {
@@ -52,9 +54,10 @@ void EchoServer::HandleEpollTimeout(Eventloop *loop)
 
 void EchoServer::OnMessage(conn_sptr connection, std::string &message)
 {
-    // 经过一系列计算得到一个回应报文，此处仅在前面加一个reply
-    message = "reply: " + message;
+    // printf("onMessage runing on thread(%ld).\n", syscall(SYS_gettid)); // 显示线程ID。os分配的唯一id
+    // 经过计算构造好的回应报文
+    std::string ret = "reply: " + message;
     // sleep(2);
     // printf("处理完业务后，将使用connecion对象。\n");
-    connection->send(message);
+    connection->send(std::move(ret));
 }

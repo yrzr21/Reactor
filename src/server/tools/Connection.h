@@ -18,8 +18,8 @@ class Connection : public std::enable_shared_from_this<Connection>
 private:
     Eventloop *loop_; // 被loop中epoll监视，不可delete loop
 
-    std::unique_ptr<Socket> clientSocket_;  
-    std::unique_ptr<Channel> clientChannel_; 
+    std::unique_ptr<Socket> clientSocket_;
+    std::unique_ptr<Channel> clientChannel_;
 
     std::function<void(conn_sptr, std::string &)> onmessage_cb_;
     std::function<void(conn_sptr)> sendComplete_cb_;
@@ -50,8 +50,9 @@ public:
     void onClose();    // 断开连接 handler，会回调服务端的 onClose
     void onError();    // 错误 handler，会回调服务端的 onError
 
-    // 使用发送缓冲区添加报文头后发送数据
-    void send(const std::string &message);
+    void send(std::string &&message); // 任何线程均使用此向客户端发送数据
+    // I/O线程中自动添加报文头后，注册写事件; message生命周期不确定，需要使用智能指针
+    void sendInIO(std::shared_ptr<std::string> message);
 };
 
 #endif // !CONNECTION
