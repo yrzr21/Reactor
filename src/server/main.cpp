@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    EchoServer server(argv[1], atoi(argv[2]), 128, 3, 5);
+    EchoServer server(argv[1], atoi(argv[2]), 128, 3, 5, 1, 1);
     server.start();
 
     return 0;

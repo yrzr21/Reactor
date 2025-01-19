@@ -6,6 +6,7 @@
 #include "Socket.h"
 #include "Channel.h"
 #include "Buffer.h"
+#include "Timestamp.h"
 
 class Eventloop;
 class Channel;
@@ -31,6 +32,7 @@ private:
 
     std::atomic_bool isDisconnected_;
 
+    Timestamp lastEventTime_; // 上次发生事件的时间
 public:
     Connection(Eventloop *loop, std::unique_ptr<Socket> clientSocket);
     ~Connection();
@@ -53,6 +55,8 @@ public:
     void send(std::string &&message); // 任何线程均使用此向客户端发送数据
     // I/O线程中自动添加报文头后，注册写事件; message生命周期不确定，需要使用智能指针
     void sendInIO(std::shared_ptr<std::string> message);
+
+    bool isTimeout(time_t now, int maxGap);
 };
 
 #endif // !CONNECTION

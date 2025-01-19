@@ -22,6 +22,7 @@ private:
     Acceptor acceptor_; // 一个server一个acceptor
 
     std::map<int, conn_sptr> connections_;
+    std::mutex mtx_;
 
     // 以下为 EchoServer 注册到本类中的回调函数
     std::function<void(conn_sptr)> newConnection_cb_;
@@ -32,7 +33,7 @@ private:
     std::function<void(Eventloop *)> epollTimeout_cb_;
 
 public:
-    TcpServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads); // 初始化监听的 socket，初始化 servChannel
+    TcpServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads, int maxGap, int heartCycle); // 初始化监听的 socket，初始化 servChannel
     ~TcpServer();
 
     void start(); // 开始监听，有客户端连接后启动事件循环。原文中仅作启动事件循环
@@ -56,6 +57,8 @@ public:
     void setCloseConnectionCallback(std::function<void(conn_sptr)> fn);
     void setErrorConnectionCallback(std::function<void(conn_sptr)> fn);
     void setEpollTimeoutCallback(std::function<void(Eventloop *)> fn);
+
+    void removeConnection(int fd);
 };
 
 #endif // !TCPSERVER

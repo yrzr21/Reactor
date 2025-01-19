@@ -2,7 +2,7 @@
 
 Connection::Connection(Eventloop *loop, std::unique_ptr<Socket> clientSocket)
     : loop_(loop), clientSocket_(std::move(clientSocket)), isDisconnected_(false),
-      clientChannel_(new Channel(this->loop_, clientSocket_->fd()))
+      clientChannel_(new Channel(this->loop_, clientSocket_->fd())), lastEventTime_(Timestamp::now())
 
 {
     this->clientChannel_->enablereading(), this->clientChannel_->useet(); // 监视读，边缘触发
@@ -15,11 +15,13 @@ Connection::Connection(Eventloop *loop, std::unique_ptr<Socket> clientSocket)
 
 Connection::~Connection()
 {
-    // printf("已析构\n");
+    // printf("%d 已析构\n", this->fd());
 }
 
 void Connection::onmessage()
 {
+    this->lastEventTime_ = Timestamp::now();
+    // printf("当前时间: %s\n", this->lastEventTime_.tostring().c_str());
     char buffer[1024];
     while (true) // 由于使用非阻塞IO，一次读取buffer大小数据，直到全部的数据读取完毕。
     {
@@ -142,4 +144,9 @@ void Connection::setClose_cb(std::function<void(conn_sptr connection)> fn)
 void Connection::setError_cb(std::function<void(conn_sptr connection)> fn)
 {
     this->error_cb_ = fn;
+}
+
+bool Connection::isTimeout(time_t now, int maxGap)
+{
+    return now - this->lastEventTime_.toint() >= maxGap;
 }

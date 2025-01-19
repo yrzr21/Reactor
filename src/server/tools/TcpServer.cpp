@@ -1,14 +1,15 @@
 #include "TcpServer.h"
 
-TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads)
-    : mainloop_(new Eventloop), pool_(nSubthreads, "I/O"),
+TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads, int maxGap, int heartCycle)
+    : mainloop_(new Eventloop(true, maxGap, heartCycle)), pool_(nSubthreads, "I/O"),
       acceptor_(ip, port, mainloop_.get(), nListen)
 {
     this->mainloop_->setEpollTimtoutCallback(std::bind(&TcpServer::epollTimeout, this, std::placeholders::_1));
     for (int i = 0; i < nSubthreads; i++)
     {
-        std::unique_ptr<Eventloop> loop(new Eventloop);
+        std::unique_ptr<Eventloop> loop(new Eventloop(false, maxGap, heartCycle));
         loop->setEpollTimtoutCallback(std::bind(&TcpServer::epollTimeout, this, std::placeholders::_1));
+        loop->setTimer_cb(std::bind(&TcpServer::removeConnection, this, std::placeholders::_1));
         this->pool_.addTask(std::bind(&Eventloop::run, loop.get()),
                             "Eventloop::run"); // 关联到线程池
         this->subloops_.push_back(std::move(loop));
@@ -35,7 +36,11 @@ void TcpServer::newConnection(std::unique_ptr<Socket> clientSocket)
     clientConnection->setClose_cb(std::bind(&TcpServer::closeConnection, this, std::placeholders::_1));
     clientConnection->setError_cb(std::bind(&TcpServer::errorConnection, this, std::placeholders::_1));
 
-    this->connections_[clientConnection->fd()] = clientConnection;
+    this->subloops_[loopNo]->newConnection(clientConnection);
+    {
+        std::lock_guard<std::mutex> lg(this->mtx_);
+        this->connections_[clientConnection->fd()] = clientConnection;
+    }
 
     if (this->newConnection_cb_)
         this->newConnection_cb_(clientConnection);
@@ -60,7 +65,7 @@ void TcpServer::closeConnection(conn_sptr connection)
     if (this->closeConnection_cb_)
         this->closeConnection_cb_(connection);
 
-    this->connections_.erase(connection->fd());
+    this->removeConnection(connection->fd());
     // delete this->connections_[connection->fd()];
 }
 
@@ -69,7 +74,7 @@ void TcpServer::errorConnection(conn_sptr connection)
     if (this->errorConnection_cb_)
         this->errorConnection_cb_(connection);
 
-    this->connections_.erase(connection->fd());
+    this->removeConnection(connection->fd());
     // delete this->connections_[connection->fd()];
 }
 
@@ -86,3 +91,9 @@ void TcpServer::setSendCompleteCallback(std::function<void(conn_sptr)> fn) { thi
 void TcpServer::setCloseConnectionCallback(std::function<void(conn_sptr)> fn) { this->closeConnection_cb_ = fn; }
 void TcpServer::setErrorConnectionCallback(std::function<void(conn_sptr)> fn) { this->errorConnection_cb_ = fn; }
 void TcpServer::setEpollTimeoutCallback(std::function<void(Eventloop *)> fn) { this->epollTimeout_cb_ = fn; }
+
+void TcpServer::removeConnection(int fd)
+{
+    std::lock_guard<std::mutex> lg(this->mtx_);
+    this->connections_.erase(fd);
+}
