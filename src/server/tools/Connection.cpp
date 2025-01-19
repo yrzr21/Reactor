@@ -1,8 +1,9 @@
 #include "Connection.h"
 
-Connection::Connection(Eventloop *loop, std::unique_ptr<Socket> clientSocket)
+Connection::Connection(Eventloop *loop, std::unique_ptr<Socket> clientSocket, uint16_t bufferType)
     : loop_(loop), clientSocket_(std::move(clientSocket)), isDisconnected_(false),
-      clientChannel_(new Channel(this->loop_, clientSocket_->fd())), lastEventTime_(Timestamp::now())
+      clientChannel_(new Channel(this->loop_, clientSocket_->fd())), lastEventTime_(Timestamp::now()),
+      inputBuffer_(bufferType), outputBuffer_(bufferType)
 
 {
     this->clientChannel_->enablereading(), this->clientChannel_->useet(); // 监视读，边缘触发

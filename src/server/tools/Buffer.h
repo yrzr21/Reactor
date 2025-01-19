@@ -7,15 +7,15 @@ class Buffer
 {
 private:
     std::string buffer_;
+    const uint16_t messageType_; // 报文类型。0：无分割符，1：4字节长度报文头，2：\r\n\r\n分隔符
 
 public:
-    Buffer();
+    Buffer(uint16_t type = 1);
     ~Buffer();
 
     void append(const char *data, size_t size);
     void append(const std::string &data, size_t size);
     void appendMessage(const char *data, size_t size); // 自动添加4B长度报文头
-
 
     size_t size();
     const char *data();

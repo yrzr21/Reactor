@@ -34,7 +34,7 @@ private:
 
     Timestamp lastEventTime_; // 上次发生事件的时间
 public:
-    Connection(Eventloop *loop, std::unique_ptr<Socket> clientSocket);
+    Connection(Eventloop *loop, std::unique_ptr<Socket> clientSocket, uint16_t bufferType);
     ~Connection();
 
     int fd() const;

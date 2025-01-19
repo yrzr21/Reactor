@@ -13,7 +13,7 @@ private:
     ThreadPool pool_;
 
 public:
-    EchoServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads, int nWorkThreads, int maxGap, int heartCycle);
+    EchoServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads, int nWorkThreads, int maxGap, int heartCycle, uint16_t bufferType);
     ~EchoServer();
 
     void start(); // 开始监听，有客户端连接后启动事件循环。原文中仅作启动事件循环

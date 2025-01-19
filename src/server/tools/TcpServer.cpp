@@ -1,8 +1,8 @@
 #include "TcpServer.h"
 
-TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads, int maxGap, int heartCycle)
+TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads, int maxGap, int heartCycle, uint16_t bufferType)
     : mainloop_(new Eventloop(true, maxGap, heartCycle)), pool_(nSubthreads, "I/O"),
-      acceptor_(ip, port, mainloop_.get(), nListen)
+      acceptor_(ip, port, mainloop_.get(), nListen), bufferType_(bufferType)
 {
     this->mainloop_->setEpollTimtoutCallback(std::bind(&TcpServer::epollTimeout, this, std::placeholders::_1));
     for (int i = 0; i < nSubthreads; i++)
@@ -41,7 +41,7 @@ void TcpServer::stop()
 void TcpServer::newConnection(std::unique_ptr<Socket> clientSocket)
 {
     int loopNo = clientSocket->fd() % this->pool_.size();
-    conn_sptr clientConnection(new Connection(this->subloops_[loopNo].get(), std::move(clientSocket)));
+    conn_sptr clientConnection(new Connection(this->subloops_[loopNo].get(), std::move(clientSocket), this->bufferType_));
     clientConnection->setSendComplete_cb(std::bind(&TcpServer::sendComplete, this, std::placeholders::_1));
     clientConnection->setOnmessage_cb(std::bind(&TcpServer::onMessage, this, std::placeholders::_1, std::placeholders::_2));
     clientConnection->setClose_cb(std::bind(&TcpServer::closeConnection, this, std::placeholders::_1));

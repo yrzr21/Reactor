@@ -1,7 +1,7 @@
 #include "EchoServer.h"
 
-EchoServer::EchoServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads, int nWorkThreads, int maxGap, int heartCycle)
-    : tcpServer_(ip, port, nListen, nSubthreads, maxGap, heartCycle), pool_(nWorkThreads, "work")
+EchoServer::EchoServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads, int nWorkThreads, int maxGap, int heartCycle, uint16_t bufferType)
+    : tcpServer_(ip, port, nListen, nSubthreads, maxGap, heartCycle, bufferType), pool_(nWorkThreads, "work")
 {
     // 设置回调函数
     this->tcpServer_.setCloseConnectionCallback(std::bind(&EchoServer::HandleCloseConnection, this, std::placeholders::_1));
