@@ -38,6 +38,7 @@ public:
 
     // void addTask(std::function<void()> task);
     void addTask(std::function<void()> task, const std::string &taskName);
+    void stopAll();
     size_t size();
 };
 

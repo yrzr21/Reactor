@@ -1,4 +1,17 @@
+#include <signal.h>
 #include "EchoServer.h"
+
+EchoServer *server;
+
+void stopServer(int sig)
+{
+    printf("sig=%d\n", sig);
+    server->stop();
+    printf("server已停止。\n");
+    delete server;
+    printf("delete server\n");
+    exit(0);
+}
 
 int main(int argc, char *argv[])
 {
@@ -9,8 +22,11 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    EchoServer server(argv[1], atoi(argv[2]), 128, 3, 5, 1, 1);
-    server.start();
+    signal(SIGTERM, stopServer); // 15，kill/killall 默认发送的信号
+    signal(SIGINT, stopServer);  // 2，Ctrl+C发送的信号
+
+    server = new EchoServer(argv[1], atoi(argv[2]), 128, 3, 5, 1, 1);
+    server->start();
 
     return 0;
 }

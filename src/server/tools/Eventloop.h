@@ -12,6 +12,7 @@
 #include <sys/eventfd.h>
 #include <sys/timerfd.h>
 #include <map>
+#include <atomic>
 
 class Epoll;   // 需要前置声明
 class Channel; // 需要前置声明
@@ -39,11 +40,14 @@ private:
     std::map<int, conn_sptr> connections_; // 运行的所有连接
     std::mutex con_mtx_;
 
+    std::atomic_bool stop_;
+
 public:
     Eventloop(bool isMainloop, int maxGap, int heartCycle); // 创建 Epoll
     ~Eventloop();
 
     void run();
+    void stop();
     void updateChannel(Channel *ch); // 把channel中的event加入红黑树中或修改channel
     void removeChannel(Channel *ch);
 

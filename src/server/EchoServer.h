@@ -17,6 +17,7 @@ public:
     ~EchoServer();
 
     void start(); // 开始监听，有客户端连接后启动事件循环。原文中仅作启动事件循环
+    void stop();
 
     // 以下注册到 tcpServer 中被回调
     void HandleNewConnection(conn_sptr connection);

@@ -10,10 +10,7 @@ ThreadPool::ThreadPool(size_t nThreads, const std::string &threadType)
 
 ThreadPool::~ThreadPool()
 {
-    this->isStop_ = true;
-    this->condition_.notify_all();
-    for (auto &t : this->threads_)
-        t.join();
+    this->stopAll();
 }
 
 // void ThreadPool::addTask(std::function<void()> task)
@@ -34,6 +31,16 @@ void ThreadPool::addTask(std::function<void()> task, const std::string &taskName
     this->condition_.notify_one();
 }
 
+void ThreadPool::stopAll()
+{
+    if (this->isStop_)
+        return;
+    this->isStop_ = true;
+    this->condition_.notify_all();
+    for (auto &t : this->threads_)
+        t.join();
+}
+
 size_t ThreadPool::size()
 {
     return this->threads_.size();
@@ -42,7 +49,7 @@ size_t ThreadPool::size()
 // 线程的启动函数，启动后阻塞在 wait 上
 void ThreadPool::thread_func() // 用 lambda 函数也可以
 {
-    // printf("create %s thread(%ld).\n", this->threadType_.c_str(), syscall(SYS_gettid)); // 显示线程ID。os分配的唯一id
+    printf("create %s thread(%ld).\n", this->threadType_.c_str(), syscall(SYS_gettid)); // 显示线程ID。os分配的唯一id
     // std::cout << "子线程：" << std::this_thread::get_id() << std::endl; // C++11库分配的id
 
     while (isStop_ == false) // 判断执不执行

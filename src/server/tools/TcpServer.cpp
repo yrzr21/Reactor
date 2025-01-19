@@ -27,6 +27,17 @@ void TcpServer::start()
     this->mainloop_->run();
 }
 
+void TcpServer::stop()
+{
+    this->mainloop_->stop();
+    printf("主事件循环已停止\n");
+    for (size_t i = 0; i < this->subloops_.size(); i++)
+        subloops_[i]->stop();
+    printf("从事件循环已停止\n");
+    this->pool_.stopAll();
+    printf("I/O线程已停止\n");
+}
+
 void TcpServer::newConnection(std::unique_ptr<Socket> clientSocket)
 {
     int loopNo = clientSocket->fd() % this->pool_.size();

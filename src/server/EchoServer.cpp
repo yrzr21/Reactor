@@ -21,9 +21,19 @@ void EchoServer::start()
     this->tcpServer_.start();
 }
 
+void EchoServer::stop()
+{
+    this->pool_.stopAll();
+    printf("工作线程已停止\n");
+    // sleep(1000);
+    this->tcpServer_.stop();
+    printf("tcpServer 已停止\n");
+    // sleep(1000);
+}
+
 void EchoServer::HandleNewConnection(conn_sptr connection)
 {
-    // printf("%ld HandleNewConnection: accept client(fd=%d,ip=%s,port=%d) ok.\n", syscall(SYS_gettid), connection->fd(), connection->ip().c_str(), connection->port());
+    printf("NewConnection:fd=%d,ip=%s,port=%d ok.\n", connection->fd(), connection->ip().c_str(), connection->port());
 }
 void EchoServer::HandleOnMessage(conn_sptr connection, std::string &message)
 {
@@ -41,7 +51,7 @@ void EchoServer::HandleSendComplete(conn_sptr connection)
 }
 void EchoServer::HandleCloseConnection(conn_sptr connection)
 {
-    // printf("client(eventfd=%d) disconnected.\n", connection->fd());
+    printf("client(eventfd=%d) disconnected.\n", connection->fd());
 }
 void EchoServer::HandleErrorConnection(conn_sptr connection)
 {

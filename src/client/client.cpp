@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 
     printf("connect ok.\n");
     // printf("开始时间：%d\n",time(0));
-    sleep(1000);
+
     for (int ii = 0; ii < 10; ii++)
     {
         memset(buf, 0, sizeof(buf));
@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
         printf("recv:%s\n", buf);
         sleep(1);
     }
+    sleep(100);
 
     // printf("结束时间：%d\n",time(0));
 }

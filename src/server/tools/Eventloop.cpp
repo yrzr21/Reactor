@@ -15,7 +15,8 @@ int createTimerfd(int heartCycle)
 Eventloop::Eventloop(bool isMainloop, int maxGap, int heartCycle)
     : ep_(new Epoll), efd_(eventfd(0, EFD_NONBLOCK)), eChannel_(new Channel(this, efd_)),
       tfd_(createTimerfd(heartCycle)), tChannel_(new Channel(this, tfd_)),
-      isMainloop_(isMainloop), maxTimeGap_(maxGap), heartCycle_(heartCycle)
+      isMainloop_(isMainloop), maxTimeGap_(maxGap), heartCycle_(heartCycle),
+      stop_(false)
 
 {
     this->eChannel_->enablereading(); // LT
@@ -32,7 +33,7 @@ Eventloop::~Eventloop()
 void Eventloop::run()
 {
     this->loop_tid = syscall(SYS_gettid);
-    while (true) // 事件循环。
+    while (!this->stop_) // 事件循环。
     {
         std::vector<Channel *> rChannels = this->ep_->loop(10 * 1000); // 等待监视的fd有事件发生。
         if (rChannels.size() == 0)
@@ -43,6 +44,12 @@ void Eventloop::run()
                 ch->handleEvent();
         }
     }
+}
+
+void Eventloop::stop()
+{
+    this->stop_ = true;
+    this->wakeUp(); // 将事件循环从 epoll_wait 中唤醒
 }
 
 void Eventloop::updateChannel(Channel *ch)

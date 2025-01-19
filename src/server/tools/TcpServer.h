@@ -37,6 +37,7 @@ public:
     ~TcpServer();
 
     void start(); // 开始监听，有客户端连接后启动事件循环。原文中仅作启动事件循环
+    void stop();  // 停止所有事件循环
 
     // 注册到 acceptor 中进行回调
     void newConnection(std::unique_ptr<Socket> clientSocket);
