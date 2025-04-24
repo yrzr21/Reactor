@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.10)
 
 project(Reactor)
 
+set(CXX_STANDARD 20)
+
 # client 源文件
 file(GLOB CLIENT_SRC_FILES
     "${PROJECT_SOURCE_DIR}/src/client/*.cpp"
