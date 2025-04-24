@@ -7,15 +7,17 @@
 
 // 4字节长度报文头，自动扩容的 ring buffer
 struct Header {
-    uint32_t size;
+    uint32_t size = -1;
 };
 
 class Buffer {
     friend void swap(Buffer &lhs, Buffer &rhs);
 
    private:
-    Header last_header_;
-    size_t last_msg_idx_ = -1;  // -1 means no header;
+    // header of an uncomplete message
+    // current_header_.size = -1 means no complete header yet
+    Header current_header_;
+    size_t current_header_idx_ = 0;
 
     std::vector<char> buffer_;  // buffer_ = [reader_idx_, writer_idx_)
     size_t reader_idx_ = 0;     // next read
@@ -34,10 +36,12 @@ class Buffer {
     void retrieve(size_t size);
     void occupy(size_t size);
 
-    bool readBytes(char *dest，size_t offset, size_t size);
+    bool readBytes(char *dest, size_t offset, size_t size);
+    bool readBytesFromIdx(size_t idx, char *dest, size_t offset, size_t size);
     bool writeBytes(const char *data, size_t size);
 
-    void updateLastHeader();
+    void updateCurrentHeader();
+    bool isCurrentMessageComplete();
 
     const char *peek();
     size_t capacity();

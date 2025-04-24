@@ -2,15 +2,9 @@
 
 Buffer::Buffer(int initialSize) : buffer_(initialSize) {}
 
-size_t Buffer::readableBytes() {
-    if (full_) return capacity();
+bool Buffer::hasNextMessage() {}
 
-    if (writer_idx_ >= reader_idx_) {
-        return writer_idx_ - reader_idx_;
-    } else {
-        return capacity() - reader_idx_ + writer_idx_;
-    }
-}
+size_t Buffer::readableBytes() { return readableFromIdx(reader_idx_); }
 
 size_t Buffer::readableFromIdx(size_t idx) {
     if (idx >= capacity()) return 0;
@@ -36,7 +30,8 @@ void Buffer::makeSpace(size_t size) {
     std::vector<char> newBuf(newSize);
 
     // 拷贝现有数据
-    readBytes(newBuf.data(), 0, readableBytes());
+    size_t readable = readableBytes();
+    readBytes(newBuf.data(), 0, readable);
     buffer_.swap(newBuf);
 
     reader_idx_ = 0;
@@ -51,7 +46,7 @@ void Buffer::occupy(size_t size) {
     writer_idx_ = (writer_idx_ + size) % capacity();
 
     full_ = (writer_idx_ == reader_idx_);
-    return true;
+    // return true;
 }
 
 // 调整读指针，回收内存
@@ -61,7 +56,7 @@ void Buffer::retrieve(size_t size) {
     reader_idx_ = (reader_idx_ + size) % capacity();
 
     full_ = false;
-    return true;
+    // return true;
 }
 
 // 查看
@@ -71,12 +66,17 @@ char* Buffer::begin() { return buffer_.data(); }
 
 // 把数据读到 dest 偏移 offset 位置，不调整读指针
 // 通过拷贝读写ring buffer，不调整读写指针
-bool Buffer::readBytes(char* dest，size_t offset, size_t size) {
-    if (size > readableBytes()) return false;
+bool Buffer::readBytes(char* dest, size_t offset, size_t size) {
+    return readBytesFromIdx(reader_idx_, dest，offset, size);
+}
+
+bool Buffer::readBytesFromIdx(size_t idx, char* dest, size_t offset,
+                              size_t size) {
+    if (readableFromIdx(idx) < size) return false;
     dest += offset;
 
-    size_t first = std::min(size, capacity() - reader_idx_);
-    std::memcpy(dest, reader_idx_, first);
+    size_t first = std::min(size, capacity() - idx);
+    std::memcpy(dest, begin() + idx, first);
 
     if (first < size) {
         std::memcpy(dest + first, begin(), size - first);
@@ -98,47 +98,34 @@ bool Buffer::writeBytes(const char* src, size_t size) {
     return true;
 }
 
-void Buffer::updateLastHeader() {
+// 更新 current_header_ 和 current_header_idx_
+void Buffer::updateCurrentHeader() {
     while (true) {
-        // read header
-        if (last_msg_idx_ == -1 && readableBytes() >= sizeof(Header)) {
-            readBytes(&last_header_, 0, sizeof(Header));
-            // last_header_.size = ntohl(last_header_.size);
-            last_msg_idx_ = reader_idx_ + sizeof(Header);
+        // no header, read header
+        if (current_header_.size == -1) {
+            if (readableFromIdx(current_header_idx_) < sizeof(Header)) return;
+            readBytesFromIdx(current_header_idx_, (char*)&current_header_, 0,
+                             sizeof(Header));
+            // current_header_.size = ntohl(current_header_.size);
         }
 
         // is msg complete?
-        int msg_size = last_header_.size;
-        if (last_msg_idx_ != -1 && readableFromIdx(last_msg_idx_) >= msg_size) {
-            last_msg_idx_ = -1;
-            last_header_.size = -1;
-        }
+        if (!isCurrentMessageComplete()) return;
+
+        // msg complete, update header
+        size_t size = sizeof(Header) + current_header_.size;
+        current_header_.size = -1;
+        current_header_idx_ = (current_header_idx_ + size) % capacity();
     }
 }
 
-// // 把所有的数据都读到 buffer 里，对端关闭返回0
-// ssize_t Buffer::readFd(int fd) {
-//     char buffer[65536];
+bool Buffer::isCurrentMessageComplete() {
+    if (current_header_.size == -1) return false;
 
-//     // ET，所以需要一次读取buffer大小，直到读完
-//     uint32_t nread = 0;
-//     while (true) {
-//         // bzero(&buffer, sizeof(buffer));
-//         int n = ::read(fd, buffer, sizeof(buffer));
+    size_t size = sizeof(Header) + current_header_.size;
+    return readableFromIdx(current_header_idx_) >= size;
+}
 
-//         if (n > 0) {
-//             nread += n;
-//             writeBytes(buffer, n);
-//         } else if (n == 0) {
-//             return 0;  // 对端关闭
-//         } else {
-//             if (errno == EINTR) continue;  // 被中断
-//             // 读取完毕
-//             if (errno == EAGAIN || errno == EWOULDBLOCK) return nread;
-//             return -1;  // 其他错误
-//         }
-//     }
-// }
 // 把所有的数据都读到 buffer 里，对端关闭返回0
 ssize_t Buffer::readFd(int fd) {
     // ET，所以需要一次读取buffer大小，直到读完
@@ -164,43 +151,7 @@ ssize_t Buffer::readFd(int fd) {
         nread += n;
         occupy(n);
 
-        updateLastHeader();
-
-        // read header
-        if (last_msg_idx_ == -1 && readableBytes() >= sizeof(Header)) {
-            readBytes(&last_header_, 0, sizeof(Header));
-            // last_header_.size = ntohl(last_header_.size);
-            last_msg_idx_ = reader_idx_ + sizeof(Header);
-        }
-
-        // is msg complete?
-        int msg_size = last_header_.size;
-        if (last_msg_idx_ != -1 && readableFromIdx(last_msg_idx_) >= msg_size) {
-            last_msg_idx_ = -1;
-            last_header_.size = -1;
-            return nread;
-        }
-
-        if (last_msg_idx_ != -1) {
-        } else {
-        }
-
-        if (last_header_.size == -1 && n >= sizeof(Header)) {
-            readBytes(&Header, 0, sizeof(Header));
-            retrieve(sizeof(Header));
-        }
-        if (n < capacity() - writer_idx_) return nread;
-
-        if (last_header_.size == -1) {
-            if (writableBytes() < sizeof(Header)) makeSpace(0);
-            n = ::read(fd, begin(), reader_idx_ - begin());
-        }
-
-        // 读取协议头
-        if (readableBytes() + n >= sizeof(Header)) {
-            readBytes(&Header, 0, sizeof(Header));
-            retrieve(sizeof(Header));
-        }
+        updateCurrentHeader();
     }
 }
 
@@ -212,7 +163,8 @@ std::string Buffer::nextMessage() {
     uint32_t netLen;
     readBytes(&netLen, 0, sizeof(Header));
     uint32_t len = ntohl(netLen);
-    if (readableBytes() < len) return {};  // 长度不够
+    if (readableBytes() < len + sizeof(Header)) return {};  // 数据不完整
+
     retrieve(sizeof(Header));
 
     std::string msg(len);
