@@ -1,50 +1,78 @@
 cmake_minimum_required(VERSION 3.10)
+project(Reactor LANGUAGES CXX)
 
-project(Reactor)
+# 设置 C++ 标准
+set(CMAKE_CXX_STANDARD 20)
 
-set(CXX_STANDARD 20)
+# 定义头文件与源文件的根目录
+set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set(INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-# client 源文件
-file(GLOB CLIENT_SRC_FILES
-    "${PROJECT_SOURCE_DIR}/src/client/*.cpp"
-    "${PROJECT_SOURCE_DIR}/src/client/*.h")
-add_executable(client ${CLIENT_SRC_FILES})
+# ------------------------------------------------------------------------------
+# 1) base 模块
+# ------------------------------------------------------------------------------
+file(GLOB BASE_SOURCES ${SRC_DIR}/base/*.cpp)
+add_library(base STATIC
+    ${BASE_SOURCES}
+)
+target_include_directories(base PUBLIC
+    ${INCLUDE_DIR}/base
+)
 
-# server 源文件
-file(GLOB SERVER_SRC_FILES
-    "${PROJECT_SOURCE_DIR}/src/server/*.cpp"
-    "${PROJECT_SOURCE_DIR}/src/server/*.h"
-    "${PROJECT_SOURCE_DIR}/src/server/tools/*.cpp"
-    "${PROJECT_SOURCE_DIR}/src/server/tools/*.h"
+# ------------------------------------------------------------------------------
+# 2) net 模块
+# ------------------------------------------------------------------------------
+file(GLOB NET_SOURCES
+    ${SRC_DIR}/net/Connection/*.cpp
+    ${SRC_DIR}/net/Event/*.cpp
+)
+add_library(net STATIC ${NET_SOURCES})
+target_include_directories(net PUBLIC
+    ${INCLUDE_DIR}/net/Connection
+    ${INCLUDE_DIR}/net/Event
+)
+target_link_libraries(net PUBLIC base)
+
+# ------------------------------------------------------------------------------
+# 3) server 模块
+# ------------------------------------------------------------------------------
+file(GLOB SERVER_SOURCES ${SRC_DIR}/server/*.cpp)
+add_library(server STATIC
+    ${SERVER_SOURCES}
+)
+target_include_directories(server PUBLIC
+    ${INCLUDE_DIR}/server
+)
+target_link_libraries(server PUBLIC net)
+
+# ------------------------------------------------------------------------------
+# 4) 主程序
+# ------------------------------------------------------------------------------
+add_executable(Reactor
+    ${SRC_DIR}/main.cpp
+)
+target_include_directories(Reactor PRIVATE
+    ${INCLUDE_DIR}
+)
+target_link_libraries(Reactor PRIVATE server)
+
+# ------------------------------------------------------------------------------
+# 5) 单元测试
+# ------------------------------------------------------------------------------
+enable_testing()
+find_package(GTest REQUIRED)
+
+file(GLOB TEST_SOURCES tests/*_test.cpp)
+foreach(test_src ${TEST_SOURCES})
+    get_filename_component(test_name ${test_src} NAME_WE)
+    add_executable(${test_name} ${test_src})
+    target_include_directories(${test_name} PRIVATE ${INCLUDE_DIR})
+    target_link_libraries(${test_name}
+        PRIVATE
+            base
+            GTest::GTest
+            GTest::Main
+            pthread
     )
-add_executable(server ${SERVER_SRC_FILES})
-
-
-# 构建完成后复制可执行文件到 ${PROJECT_SOURCE_DIR}/debug
-add_custom_command(TARGET client POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:client> ${PROJECT_SOURCE_DIR}/debug/)
-
-add_custom_command(TARGET server POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:server> ${PROJECT_SOURCE_DIR}/debug/)
-
-# add_executable(test test.cpp)
-
-# add_custom_command(TARGET server POST_BUILD
-#     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:test> ${PROJECT_SOURCE_DIR}/debug/)
-
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
-
-
-
-
-##################################################################
-# 教程
-
-# 获取文件，然后传递给add...
-# file(GLOB SRC_FILES
-#     "${PROJECT_SOURCE_DIR}/src/*.cpp"
-#     "${PROJECT_SOURCE_DIR}/src/*.h")
-
-# 不会解析通配符
-# add_executable(reactor ${SRC_FILES})
+    add_test(NAME ${test_name} COMMAND ${test_name})
+endforeach()
