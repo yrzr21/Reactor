@@ -1,131 +1,137 @@
 #include "TcpServer.h"
 
 TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen,
-                     int nSubthreads, int maxGap, int heartCycle,
-                     uint16_t bufferType)
+                     int nSubthreads, int maxGap, int heartCycle)
     : mainloop_(new Eventloop(true, maxGap, heartCycle)),
       pool_(nSubthreads, "I/O"),
-      acceptor_(ip, port, mainloop_.get(), nListen),
-      bufferType_(bufferType) {
-    this->mainloop_->setEpollTimtoutCallback(
-        std::bind(&TcpServer::epollTimeout, this, std::placeholders::_1));
+      acceptor_(ip, port, mainloop_.get(), nListen) {
+    // set handler
+    mainloop_->setLoopTimeoutCallback(
+        [this](Eventloop *loop) { this->handleEpollTimeout(loop); });
+
     for (int i = 0; i < nSubthreads; i++) {
-        std::unique_ptr<Eventloop> loop(
-            new Eventloop(false, maxGap, heartCycle));
+        LoopPtr loop = std::make_unique<Eventloop>(false, maxGap, heartCycle);
+        // set handler
         loop->setEpollTimtoutCallback(
-            std::bind(&TcpServer::epollTimeout, this, std::placeholders::_1));
-        loop->setTimer_cb(std::bind(&TcpServer::removeConnection, this,
-                                    std::placeholders::_1));
-        this->pool_.addTask(std::bind(&Eventloop::run, loop.get()),
-                            "Eventloop::run");  // 关联到线程池
-        this->subloops_.push_back(std::move(loop));
+            [this](Eventloop *loop) { this->handleEpollTimeout(loop); });
+
+        loop->setTimerCallback([this](IntVector &wait_timeout_fds) {
+            this->handleTimer(wait_timeout_fds);
+        });
+
+        // run loop in thread
+        pool_.addTask(std::bind(&Eventloop::run, loop.get()), "Eventloop::run");
+        subloops_.push_back(std::move(loop));
     }
 
-    // this->acceptor_.setNewConnection_cb(std::bind(
+    // acceptor_.setNewConnection_cb(std::bind(
     //     &TcpServer::handleNewConnection, this, std::placeholders::_1));
 
-    this->acceptor_.setNewConnection_cb([this](ConnectionPtr conn) {
+    acceptor_.setNewConnectionCallBack([this](ConnectionPtr conn) {
         this->handleNewConnection(std::move(conn));
     };);
 }
 
 TcpServer::~TcpServer() { stop(); }
 
+void TcpServer::removeConnection(int fd) {
+    std::lock_guard<std::mutex> lg(mtx_);
+    connections_.erase(fd);
+}
+
 void TcpServer::start() {
-    this->acceptor_.listen();
-    this->mainloop_->run();
+    acceptor_.listen();
+    mainloop_->run();
 }
 
 void TcpServer::stop() {
-    this->mainloop_->stop();
+    mainloop_->stop();
     // printf("主事件循环已停止\n");
-    for (size_t i = 0; i < this->subloops_.size(); i++) subloops_[i]->stop();
+    for (size_t i = 0; i < subloops_.size(); i++) subloops_[i]->stop();
     // printf("从事件循环已停止\n");
 
-    this->pool_.stopAll();
+    pool_.stopAll();
     // printf("I/O线程已停止\n");
 }
 
+// -- Acceptor hanler --
 void TcpServer::handleNewConnection(SocketPtr clientSocket) {
     // create connection
-    int loopNo = clientSocket->fd() % this->pool_.size();
-    Eventloop *loopPtr = this->subloops_[loopNo].get();
+    int loopNo = clientSocket->fd() % pool_.size();
+    Eventloop *loopPtr = subloops_[loopNo].get();
     ConnectionPtr clientConnection =
         std::make_shared<bufferType_>(loopPtr, std::move(clientSocket));
 
     // set callback function
-    clientConnection->setSendComplete_cb(
-        [this](ConnectionPtr conn) { this->sendComplete(std::move(conn)) };);
-    clientConnection->setOnmessage_cb(
+    clientConnection->setMessageCallback(
         [this](ConnectionPtr conn, std::string &message) {
-            this->onMessage(std::move(conn), message);
+            this->handleMessage(std::move(conn), message);
         };);
-    clientConnection->setClose_cb(
-        [this](ConnectionPtr conn) { this->closeConnection(std::move(conn)) };);
-    clientConnection->setError_cb(
-        [this](ConnectionPtr conn) { this->errorConnection(std::move(conn)) };);
+    clientConnection->setSendCompleteCallback([this](ConnectionPtr conn) {
+        this->handleSendComplete(std::move(conn))
+    };);
+    clientConnection->setCloseCallback([this](ConnectionPtr conn) {
+        this->handleConnectionClose(std::move(conn))
+    };);
+    clientConnection->setErrorCallback([this](ConnectionPtr conn) {
+        this->handleConnectionError(std::move(conn))
+    };);
 
     // register in loop & ConnectionMap
-    subloops_[loopNo]->newConnection(clientConnection);
+    subloops_[loopNo]->registerConnection(clientConnection);
     {
-        std::lock_guard<std::mutex> lg(this->mtx_);
+        std::lock_guard<std::mutex> lg(mtx_);
         connections_.emplace(clientConnection->fd(), clientConnection);
     }
 
     // 继续回调 EchoServer
-    if (this->newConnection_cb_) this->newConnection_cb_(clientConnection);
+    if (newConnection_cb_) new_connection_callback_(clientConnection);
 }
 
-void TcpServer::onMessage(conn_sptr connection, std::string &message) {
-    if (this->onMessage_cb_) this->onMessage_cb_(connection, message);
+// -- Connection handler --
+void TcpServer::handleMessage(ConnectionPtr connection, std::string &message) {
+    if (message_callback_) message_callback_(connection, message);
+}
+void TcpServer::handleSendComplete(ConnectionPtr connection) {
+    if (send_complete_callback_) send_complete_callback_(connection);
+}
+void TcpServer::handleConnectionClose(ConnectionPtr connection) {
+    if (connection_close_callback_) connection_close_callback_(connection);
+
+    removeConnection(connection->fd());
+}
+void TcpServer::handleConnectionError(ConnectionPtr connection) {
+    if (connection_error_callback_) connection_error_callback_(connection);
+
+    removeConnection(connection->fd());
 }
 
-void TcpServer::sendComplete(conn_sptr connection) {
-    if (this->sendComplete_cb_) this->sendComplete_cb_(connection);
-
+// -- Eventloop handler --
+void TcpServer::handleEpollTimeout(Eventloop *loop) {
+    if (epoll_timeout_callback_) epoll_timeout_callback_(loop);
     // 以及其他业务需求代码
 }
-
-void TcpServer::closeConnection(conn_sptr connection) {
-    if (this->closeConnection_cb_) this->closeConnection_cb_(connection);
-
-    this->removeConnection(connection->fd());
-    // delete this->connections_[connection->fd()];
+void TcpServer::handleTimer(IntVector &wait_timeout_fds) {
+    for (auto fd : wait_timeout_fds) removeConnection(fd);
 }
 
-void TcpServer::errorConnection(conn_sptr connection) {
-    if (this->errorConnection_cb_) this->errorConnection_cb_(connection);
-
-    this->removeConnection(connection->fd());
-    // delete this->connections_[connection->fd()];
+// -- setter --
+void TcpServer::setNewConenctionCallback(ConnectionEventCallback fn) {
+    new_connection_callback_ = fn;
 }
-
-void TcpServer::epollTimeout(Eventloop *loop) {
-    if (this->epollTimeout_cb_) this->epollTimeout_cb_(loop);
-    // 以及其他业务需求代码
+void TcpServer::setMessageCallback(MessageCallbackfn) {
+    message_callback_ = fn;
 }
-
-void TcpServer::setNewConenctionCallback(std::function<void(conn_sptr)> fn) {
-    this->newConnection_cb_ = fn;
+void TcpServer::setSendCompleteCallback(ConnectionEventCallback fn) {
+    send_complete_callback_ = fn;
 }
-void TcpServer::setonMessageCallback(
-    std::function<void(conn_sptr, std::string &)> fn) {
-    this->onMessage_cb_ = fn;
+void TcpServer::setCloseConnectionCallback(ConnectionEventCallback fn) {
+    connection_close_callback_ = fn;
 }
-void TcpServer::setSendCompleteCallback(std::function<void(conn_sptr)> fn) {
-    this->sendComplete_cb_ = fn;
+void TcpServer::setErrorConnectionCallback(ConnectionEventCallback fn) {
+    connection_error_callback_ = fn;
 }
-void TcpServer::setCloseConnectionCallback(std::function<void(conn_sptr)> fn) {
-    this->closeConnection_cb_ = fn;
+void TcpServer::setLoopTimeoutCallback(LoopTimeoutCallback fn) {
+    epoll_timeout_callback_ = fn;
 }
-void TcpServer::setErrorConnectionCallback(std::function<void(conn_sptr)> fn) {
-    this->errorConnection_cb_ = fn;
-}
-void TcpServer::setEpollTimeoutCallback(std::function<void(Eventloop *)> fn) {
-    this->epollTimeout_cb_ = fn;
-}
-
-void TcpServer::removeConnection(int fd) {
-    std::lock_guard<std::mutex> lg(this->mtx_);
-    this->connections_.erase(fd);
-}
+void TcpServer::setTimerCallback(TimerCallback fn) { timer_callback_ = fn; }

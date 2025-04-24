@@ -18,56 +18,56 @@ class TcpServer {
    private:
     LoopPtr mainloop_;
     std::vector<LoopPtr> subloops_;
-    ThreadPool pool_; // IO线程
+    ThreadPool pool_;  // IO线程
 
-    // listen
     Acceptor acceptor_;
 
     ConnectionMap connections_;
     Mutex mtx_;
 
-    const uint16_t bufferType_;
+    // -- callback --
+    ConnectionEventCallback new_connection_callback_;
+    MessageCallback message_callback_;
+    ConnectionEventCallback send_complete_callback_;
+    ConnectionEventCallback connection_close_callback_;
+    ConnectionEventCallback connection_error_callback_;
+    LoopTimeoutCallback epoll_timeout_callback_;
+    TimerCallback timer_callback_;
 
-    // 回调 EchoServer
-    EventCallback newConnection_cb_;
-    MessageCallback onMessage_cb_;
-    EventCallback sendComplete_cb_;
-    EventCallback closeConnection_cb_;
-    EventCallback errorConnection_cb_;
-    TimeoutCallback epollTimeout_cb_;
+   private:
+    void removeConnection(int fd);
 
    public:
     // 初始化监听的 socket，初始化 servChannel
     TcpServer(const std::string &ip, uint16_t port, int nListen,
-              int nSubthreads, int maxGap, int heartCycle, uint16_t bufferType);
+              int nSubthreads, int maxGap, int heartCycle);
     ~TcpServer();
 
-    void
-    start();  // 开始监听，有客户端连接后启动事件循环。原文中仅作启动事件循环
+    // 开始监听，有客户端连接后启动事件循环。原文中仅作启动事件循环
+    void start();
     void stop();  // 停止所有事件循环
 
-    // 被acceptor回调
+    // -- Acceptor hanler --
     void handleNewConnection(std::unique_ptr<Socket> clientSocket);
 
-    // 以下注册到 connection 中进行回调
-    void onMessage(ConnectionPtr connection, std::string &message);
+    // -- Connection handler --
+    void handleMessage(ConnectionPtr connection, std::string &message);
+    void handleSendComplete(ConnectionPtr connection);
+    void handleConnectionClose(ConnectionPtr connection);
+    void handleConnectionError(ConnectionPtr connection);
 
-    void sendComplete(ConnectionPtr connection);
-    void closeConnection(ConnectionPtr connection);
-    void errorConnection(ConnectionPtr connection);
+    // -- Eventloop handler --
+    void handleEpollTimeout(Eventloop *loop);
+    void handleTimer(IntVector &wait_timeout_fds);
 
-    // 被 Eventloop 回调
-    void epollTimeout(Eventloop *loop);
-
-    // set 回调
-    void setNewConenctionCallback(EventCallback fn);
-    void setonMessageCallback(MessageCallbackfn);
-    void setSendCompleteCallback(EventCallback fn);
-    void setCloseConnectionCallback(EventCallback fn);
-    void setErrorConnectionCallback(EventCallback fn);
-    void setEpollTimeoutCallback(TimeoutCallback fn);
-
-    void removeConnection(int fd);
+    // -- setter --
+    void setNewConenctionCallback(ConnectionEventCallback fn);
+    void setMessageCallback(MessageCallbackfn);
+    void setSendCompleteCallback(ConnectionEventCallback fn);
+    void setCloseConnectionCallback(ConnectionEventCallback fn);
+    void setErrorConnectionCallback(ConnectionEventCallback fn);
+    void setLoopTimeoutCallback(LoopTimeoutCallback fn);
+    void setTimerCallback(TimerCallback fn);
 };
 
 #endif  // !TCPSERVER

@@ -3,7 +3,7 @@
 Connection::Connection(Eventloop *loop, std::unique_ptr<Socket> clientSocket)
     : loop_(loop),
       socket_(std::move(clientSocket)),
-      channel_(new Channel(this->loop_, clientSocket_->fd())) {
+      channel_(new Channel(loop_, clientSocket_->fd())) {
     channel_->enableEvent(EPOLLIN);
     channel_->enableEdgeTrigger();
 
@@ -17,138 +17,128 @@ Connection::Connection(Eventloop *loop, std::unique_ptr<Socket> clientSocket)
     channel_->setEventHandler(HandlerType::Error,
                               [this] { this->handleError(); });
 
-    // this->clientChannel_->setreadcallback(
+    // channel_->setreadcallback(
     //     std::bind(&Connection::onmessage, this));
-    // this->clientChannel_->setWritablecallback(
+    // channel_->setWritablecallback(
     //     std::bind(&Connection::onWritable, this));
-    // this->clientChannel_->setClosecallback(
+    // channel_->setClosecallback(
     //     std::bind(&Connection::onClose, this));
-    // this->clientChannel_->setErrorcallback(
+    // channel_->setErrorcallback(
     //     std::bind(&Connection::onError, this));
 }
 
 // Connection::~Connection() {
-//      printf("%d 已析构\n", this->fd());
+//      printf("%d 已析构\n", fd());
 // }
 
-void Connection::onmessage() {}  // 处理对端发送过来的消息。
+void Connection::send(std::string &&message) {
+    if (disconnected_) return;
 
-// 可写立即尝试全部写入。发送缓冲区清空后禁用写事件
-void Connection::onWritable() {
-    int nwrite = ::send(this->fd(), this->outputBuffer_.data(),
-                        this->outputBuffer_.size(), 0);
-    if (nwrite > 0) this->outputBuffer_.erase(0, nwrite);
+    // 难以判定生命周期, 故使用智能指针
+    MessagePtr msg_ptr = std::make_shared<std::string>(message);
 
-    if (this->outputBuffer_.size() == 0) {
-        this->clientChannel_->disableWriting();
-        this->sendComplete_cb_(shared_from_this());
+    if (loop_->inIOLoop()) {
+        // 0工作线程时会用到这个情况
+        sendInIO(message_ptr);
+    } else {
+        loop_->postTask([this] { this->sendInIO(std::move(message_ptr)) });
     }
+}
+
+// do send
+void Connection::sendInIO(MessagePtr &&message) {
+    // printf("sendInIO: current thread: %ld\n", syscall(SYS_gettid));
+    output_buffer_.pushMessage(std::forward<MessagePtr>(message));
+
+    // 注册写事件，在被channel回调的 onWritable 中发送数据
+    channel_->enableWriting();
+}
+
+int Connection::fd() const { return clientSocket_->fd(); }
+std::string Connection::ip() const { return clientSocket_->ip(); }
+uint16_t Connection::port() const { return clientSocket_->port(); }
+
+void Connection::setMessageCallback(MessageCallback cb) {
+    message_callback_ = std::move(cb);
+}
+void Connection::setSendCompleteCallback(ConnectionEventCallback cb) {
+    send_complete_callback_ = std::move(cb);
+}
+void Connection::setCloseCallback(ConnectionEventCallback cb) {
+    close_callback_ = std::move(cb);
+}
+void Connection::setErrorCallback(ConnectionEventCallback cb) {
+    error_callback_ = std::move(cb);
+}
+
+bool Connection::isTimeout(time_t now, int maxGap) {
+    return now - lastEventTime_.toint() >= maxGap;
 }
 
 void Connection::onClose() {
-    this->isDisconnected_ = true;
-    this->clientChannel_->remove();
-    this->close_cb_(shared_from_this());
+    disconnected_ = true;
+    channel_->remove();
+    on_close_cb_(shared_from_this());
 
     // 以下不必要，因为tcpserver中关闭connection，connection会关闭socket，socket负责关闭fd
-    // close(this->fd()); // 关闭客户端的fd。
+    // close(fd()); // 关闭客户端的fd。
 }
 
 void Connection::onError() {
-    this->isDisconnected_ = true;
-    this->clientChannel_->remove();
-    this->error_cb_(shared_from_this());
+    disconnected_ = true;
+    channel_->remove();
+    on_error_cb_(shared_from_this());
 
     // 以下不必要，因为tcpserver中关闭connection，connection会关闭socket，socket负责关闭fd
-    // close(this->fd()); // 关闭客户端的fd。
+    // close(fd()); // 关闭客户端的fd。
 }
 
-void Connection::send(std::string &&message) {
-    if (this->isDisconnected_) {
-        // printf("直接断开\n");
-        return;
-    }
+void Connection::handleMessage() {
+    lastEventTime_ = Timestamp::now();
+    // printf("当前时间: %s\n", lastEventTime_.tostring().c_str());
 
-    // 难以判定生命周期, 故使用智能指针
-    std::shared_ptr<std::string> message_ptr(
-        new std::string(std::move(message)));
-    if (this->loop_->isInLoop())
-        this->sendInIO(message_ptr);  // 0工作线程时会用到这个情况
-    else
-        this->loop_->enqueueTask(
-            std::bind(&Connection::sendInIO, this, message_ptr));
-}
-
-void Connection::sendInIO(std::shared_ptr<std::string> message) {
-    // printf("sendInIO: current thread: %ld\n", syscall(SYS_gettid));
-    this->outputBuffer_.appendMessage(message->data(),
-                                      message->size());  // 自动添加4B报文头
-
-    // 注册写事件，在被channel回调的 onWritable 中发送数据
-    this->clientChannel_->enableWriting();
-}
-
-int Connection::fd() const  // 返回fd_成员。
-{
-    return this->clientSocket_->fd();
-}
-
-std::string Connection::ip() const { return this->clientSocket_->ip(); }
-
-uint16_t Connection::port() const { return this->clientSocket_->port(); }
-
-void Connection::setOnmessage_cb(
-    std::function<void(conn_sptr, std::string &)> fn) {
-    this->onmessage_cb_ = fn;
-}
-
-void Connection::setSendComplete_cb(std::function<void(conn_sptr)> fn) {
-    this->sendComplete_cb_ = fn;
-}
-
-void Connection::setClose_cb(std::function<void(conn_sptr connection)> fn) {
-    this->close_cb_ = fn;
-}
-
-void Connection::setError_cb(std::function<void(conn_sptr connection)> fn) {
-    this->error_cb_ = fn;
-}
-
-template <uint16_t BUFFER_TYPE>
-void Connection<BUFFER_TYPE>::handleMessage() {
-    this->lastEventTime_ = Timestamp::now();
-    // printf("当前时间: %s\n", this->lastEventTime_.tostring().c_str());
-
-    int n = inputBuffer_.fillFromFd(socket_.fd());
-    if (n == 0) {  // 断开连接
-        channel_->remove();
-        onClose_(shared_from_this());
-    } else if (n == -1) {  // 错误
-        channel_->remove();
-        onError(shared_from_this());
+    int n = input_buffer_.fillFromFd(socket_.fd());
+    if (n == 0) {
+        handleClose();
+    } else if (n == -1) {
+        handleError();
     }
 
     // 获取报文
     while (true) {
         // NRVO 会自动优化这里
-        std::string message = inputBuffer_.popMessage();
+        std::string message = input_buffer_.popMessage();
         if (message.size() == 0)  // 不完整报文
             break;
 
         // 回调 tcpServer::onmessage 进行处理
-        onMessage_(shared_from_this(), message);
+        on_message_cb_(shared_from_this(), message);
     }
 }
 
-template <uint16_t BUFFER_TYPE>
-void Connection<BUFFER_TYPE>::handleWritable() {}
+// 可写立即尝试全部写入
+// 全部发送完毕后，禁用写并回调TcpServer::sendComplete
+void Connection::handleWritable() {
+    ssize_t nsend = output_buffer_.sendAllToFd(fd());
 
-template <uint16_t BUFFER_TYPE>
-void Connection<BUFFER_TYPE>::handleClose() {}
+    if (output_buffer_.empty()) {
+        channel_->disableWriting();
+        on_send_complete_cb_(shared_from_this());
+    }
+}
 
-template <uint16_t BUFFER_TYPE>
-void Connection<BUFFER_TYPE>::handleError() {}
+void Connection::handleClose() {
+    disconnected_ = true;
+    channel_->remove();
+    close_callback_(shared_from_this());
 
-bool Connection::isTimeout(time_t now, int maxGap) {
-    return now - this->lastEventTime_.toint() >= maxGap;
+    // close(fd()); // Socket会自己关闭，不用管它
+}
+
+void Connection::handleError() {
+    disconnected_ = true;
+    channel_->remove();
+    error_callback_(shared_from_this());
+
+    // close(fd()); // Socket会自己关闭，不用管它
 }

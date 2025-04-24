@@ -17,6 +17,7 @@ Acceptor::Acceptor(const std::string &ip, uint16_t port, Eventloop *loop,
       socket_(newListenfd()),
       channel_(loop, socket_.fd()),
       loop_(loop) {
+    // socket properties
     socket_.setReuseaddr();
     socket_.setReuseport();
     socket_.setTcpnodelay();
@@ -46,5 +47,5 @@ void Acceptor::handleNewConnection() {
 }
 
 void Acceptor::setNewConnectionCallBack(NewConncetionCallBack fn) {
-    this->newConnectionCallback_ = fn;
+    new_connection_callback_ = fn;
 }

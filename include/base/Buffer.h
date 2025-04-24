@@ -51,8 +51,12 @@ class Buffer {
     Buffer(int initialSize = 4096);
     ~Buffer() = default;
 
+    void pushMessage(MessagePtr &&message);
     std::string popMessage();
     ssize_t fillFromFd(int fd);
+    ssize_t sendAllToFd(int fd);
+
+    bool empty();
 };
 
 // // 交换两个buffer的缓冲区

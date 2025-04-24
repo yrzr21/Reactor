@@ -20,6 +20,7 @@ using ChannelPtr = std::unique_ptr<Channel>;
 using EpollPtr = std::unique_ptr<Epoll>;
 using ConnectionPtr = std::shared_ptr<Connection>;
 using LoopPtr = std::unique_ptr<Eventloop>;
+using MessagePtr = std::shared_ptr<std::string>;
 
 // 基础类型别名
 using Task = std::function<void()>;
@@ -27,13 +28,16 @@ using TaskQueue = std::queue<Task>;
 using Mutex = std::mutex;
 using ConnectionMap = std::map<int, ConnectionPtr>;
 using AtomicBool = std::atomic_bool;
+using IntVector = std::vector<int>;
+using Seconds = std::chrono::seconds;
+using MutexGuard = std::lock_guard<std::mutex>;
 
 // 回调函数别名
 using MessageCallback = std::function<void(ConnectionPtr, std::string &)>;
 using ChannelCallback = std::function<void()>;
-using EventCallback = std::function<void(ConnectionPtr)>;
-using TimerCallback = std::function<void(int)>;
-using TimeoutCallback = std::function<void(class Eventloop *)>;
+using ConnectionEventCallback = std::function<void(ConnectionPtr)>;
+using TimerCallback = std::function<void(std::vector<int>)>;
+using LoopTimeoutCallback = std::function<void(Eventloop *)>;
 using NewConncetionCallBack = std::function<void(SocketPtr)>;
 
 // 事件处理类型

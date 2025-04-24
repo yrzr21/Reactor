@@ -34,7 +34,7 @@ class Epoll {
     Epoll& operator=(Epoll&&) = default;
 
     // 对 channel 进行增删改
-    void control(EpollOp op, Channel* channel);
+    void controlChannel(EpollOp op, Channel* channel);
 
     // 监听，返回发生的事件
     std::vector<Channel*> loop(int timeout = -1);

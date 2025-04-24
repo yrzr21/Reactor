@@ -148,6 +148,12 @@ ssize_t Buffer::fillFromFd(int fd) {
     }
 }
 
+void Buffer::pushMessage(MessagePtr&& message) {
+    uint32_t size = message->size();
+    pokeBytes((char*)&size, sizeof(size));
+    pokeBytes(message->data(), size);
+}
+
 // 取出下一个报文，没or不完整则返回空
 std::string Buffer::popMessage() {
     if (readableSize() <= sizeof(Header)) return {};  // 没报文头
@@ -166,3 +172,32 @@ std::string Buffer::popMessage() {
 
     return msg;
 }
+
+// 读取数据，发送给fd
+ssize_t Buffer::sendAllToFd(int fd) {
+    ssize_t nsend = 0;
+
+    size_t readable = readableSize();
+    // if (readable == 0) return 0;
+
+    size_t first = std::min(readable, capacity() - reader_idx_);
+    ssize_t n = ::send(fd, peek(), first, 0);
+    if (n == 0) return 0;
+    if (n > 0) {
+        consumeBytes(n);
+        nsend += n;
+    }
+
+    if (first < readable) {
+        ssize_t n = ::send(fd, data(), readable - first, 0);
+        if (n == 0) return nsend;
+        if (n > 0) {
+            consumeBytes(n);
+            nsend += n;
+        }
+    }
+
+    return nsend;
+}
+
+bool Buffer::empty() { return readableSize() == 0; }

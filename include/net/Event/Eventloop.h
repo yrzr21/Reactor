@@ -15,60 +15,57 @@
 
 #include "Connection.h"
 #include "Epoll.h"
+#include "Timer.h"
 #include "types.h"
 
 // 基于 Epoll 继续封装
 class Eventloop {
    private:
-    EpollPtr epoll_;
-    // 运行的所有连接，仅使用
-    ConnectionMap connections_;
-    Mutex con_mtx_;
-
-    TimeoutCallback onEpollTimeout_;
-
-    AtomicBool stop_;
-
-    TaskQueue tasks_;
-    Mutex mtx_;
-
-    // 异步唤醒事件循环
-    eventfd_t efd_;
-    ChannelPtr eChannel_;
-
-    // 定时唤醒事件循环，清理空闲连接
-    int timer_fd_;
-    ChannelPtr timer_channel_;
-    time_t maxTimeGap_;      // connection 最长不发生事件的时间间隔
-    int heartCycle_;         // 定时器监测周期
-    TimerCallback onTimer_;  // 回调TcpServer::removeConnection
-
-    bool isMainloop_;
+    // -- basic --
+    EpollPtr epoll_ = std::make_unique<Epoll>();
+    AtomicBool stop_ = false;
+    bool is_mainloop_;
     pid_t loop_tid;
+    LoopTimeoutCallback loop_timeout_callback_;
+
+    // -- connections --
+    ConnectionMap connections_;
+    Mutex connection_mtx_;
+    time_t connection_timeout_;
+
+    // -- async I/O tasks --
+    eventfd_t event_fd_ = eventfd(0, EFD_NONBLOCK);
+    ChannelPtr event_channel_ = std::make_unique<Channel>(this, event_fd_);
+    TaskQueue tasks_;
+    Mutex task_mtx_;
+
+    // -- timer --
+    Timer timer_;
+    ChannelPtr timer_channel_ = std::make_unique<Channel>(this, timer_.fd());
+    TimerCallback timer_callback_;
 
    public:
-    Eventloop(bool isMainloop, int maxGap, int heartCycle);  // 创建 Epoll
-    ~Eventloop();
+    Eventloop(bool is_mainloop, int connection_timeout, int heartCycle);
+    ~Eventloop() = default;
 
     void run();
     void stop();
 
-    // 把channel中的event加入红黑树中或修改channel
-    void updateChannel(Channel *ch);
-    void removeChannel(Channel *ch);
+    void controlChannel(EpollOp op, Channel *ch);
+    void registerConnection(ConnectionPtr connnection);
 
-    void setEpollTimtoutCallback(std::function<void(Eventloop *)> fn);
+    bool inIOLoop();
 
-    bool isInLoop();  // 判断当前线程是否是I/O线程，即原本的通信事件循环
-    void enqueueTask(std::function<void()> task);
-    void wakeUp();
-    void handleWakeup();
+    void postTask(Task task);
+    void notifyEventLoop();  // notify Eventloop to handle pending tasks
 
-    void handleTimeout();  // timerfd 的读事件回调函数，若超时未
-    void newConnection(
-        ConnectionPtr connnection);  // 由TcpServer::newconnection
-                                     // 调用，添加运行在其中的connection
-    void setTimer_cb(std::function<void(int)> fn);
+    // -- handler --
+    void handleTimer();
+    void handlePendingTasks();
+
+    // -- setter --
+    void setTimerCallback(TimerCallback fn);
+    void setLoopTimeoutCallback(LoopTimeoutCallback fn);
 };
 
 #endif  // !EVENTLOOP

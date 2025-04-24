@@ -25,7 +25,7 @@ class Acceptor {
     Eventloop *loop_;
 
     // 回调 TcpServer
-    NewConncetionCallBack newConnectionCallback_;
+    NewConncetionCallBack new_connection_callback_;
 
    public:
     Acceptor(const std::string &ip, uint16_t port, Eventloop *loop,
@@ -38,6 +38,7 @@ class Acceptor {
     // 被 channel 回调，调用 accept 得到一个 fd，并构造为 Socket，回调TcpServer
     void handleNewConnection();
 
+    // -- setter --
     void setNewConnectionCallBack(NewConncetionCallBack fn);
 };
 

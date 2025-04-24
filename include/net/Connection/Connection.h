@@ -11,7 +11,6 @@
 #include "types.h"
 
 // 封装与客户端的连接
-template <uint16_t BUFFER_TYPE = 1>
 class Connection : public std::enable_shared_from_this<Connection> {
    private:
     // -- 基础资源 --
@@ -20,18 +19,18 @@ class Connection : public std::enable_shared_from_this<Connection> {
     Eventloop *loop_;  // 所处的事件循环
 
     // -- buffer --
-    Buffer inputBuffer_ = BUFFER_TYPE;
-    Buffer outputBuffer_ = BUFFER_TYPE;
+    Buffer input_buffer_;
+    Buffer output_buffer_;
 
     // -- 心跳机制 --
     Timestamp lastEventTime_ = Timestamp::now();
-    std::atomic_bool isDisconnected_ = false;
+    AtomicBool disconnected_ = false;
 
     // -- 回调 TcpServer --
-    MessageCallback onMessage_;
-    EventCallback onSendComplete_;
-    EventCallback onClose_;
-    EventCallback onError_;
+    MessageCallback message_callback_;
+    ConnectionEventCallback send_complete_callback_;
+    ConnectionEventCallback close_callback_;
+    ConnectionEventCallback error_callback_;
 
    public:
     Connection(Eventloop *loop, SocketPtr clientSocket);
@@ -45,14 +44,16 @@ class Connection : public std::enable_shared_from_this<Connection> {
 
     bool isTimeout(time_t now, int maxGap);
 
+    // -- getter --
     int fd() const;
     std::string ip() const;
     uint16_t port() const;
 
-    void setOnmessage_cb(MessageCallback fn);
-    void setSendComplete_cb(EventCallback fn);
-    void setClose_cb(EventCallback fn);
-    void setError_cb(EventCallback fn);
+    // -- setter --
+    void setMessageCallback(MessageCallback cb);
+    void setSendCompleteCallback(EventCallback cb);
+    void setCloseCallback(EventCallback cb);
+    void setErrorCallback(EventCallback cb);
 
     // 被 channel 回调，并会进一步回调 TcpServer
     void handleMessage();
@@ -63,5 +64,7 @@ class Connection : public std::enable_shared_from_this<Connection> {
    private:
     bool isReadFinished(int n);
 };
+
+
 
 #endif  // !CONNECTION

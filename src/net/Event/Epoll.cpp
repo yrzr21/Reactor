@@ -14,7 +14,7 @@ Epoll<MAX_EVENTS>::~Epoll() {
 }
 
 template <int MAX_EVENTS>
-inline void Epoll<MAX_EVENTS>::control(EpollOp op, Channel *channel) {
+inline void Epoll<MAX_EVENTS>::controlChannel(EpollOp op, Channel *channel) {
     epoll_event ev{.data = {.ptr = ch}, .events = ch->events()};
 
     int cmd = static_cast<int>(op);
