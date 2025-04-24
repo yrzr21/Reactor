@@ -2,8 +2,6 @@
 
 Buffer::Buffer(int initialSize) : buffer_(initialSize) {}
 
-bool Buffer::hasNextMessage() {}
-
 size_t Buffer::readableSize() { return readableFromIdx(reader_idx_); }
 
 size_t Buffer::readableFromIdx(size_t idx) {
@@ -81,7 +79,7 @@ bool Buffer::peekBytesAt(size_t idx, char* dest, size_t offset, size_t size) {
 
 // 把数据添加到ring buffer
 // 通过拷贝读写ring buffer，不调整读写指针
-bool Buffer::pokeBytes(const char* data, size_t size) {
+bool Buffer::pokeBytes(const char* src, size_t size) {
     if (size > writableBytes()) return false;
 
     size_t first = std::min(size, capacity() - writer_idx_);
@@ -158,7 +156,7 @@ std::string Buffer::popMessage() {
     uint32_t netLen;
     peekBytes(&netLen, 0, sizeof(Header));
     uint32_t len = ntohl(netLen);
-    if (readableSizeSize() < len + sizeof(Header)) return {};  // 数据不完整
+    if (readableSize() < len + sizeof(Header)) return {};  // 数据不完整
 
     consumeBytes(sizeof(Header));
 
