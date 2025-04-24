@@ -27,32 +27,32 @@ class Buffer {
 
    private:
     // -- helper functions --
-    size_t readableBytes();
+    size_t readableSize();
     size_t readableFromIdx(size_t idx);
     size_t writableBytes();
 
     void makeSpace(size_t size);
 
-    void retrieve(size_t size);
-    void occupy(size_t size);
+    void consumeBytes(size_t size);
+    void commitWrite(size_t size);
 
-    bool readBytes(char *dest, size_t offset, size_t size);
-    bool readBytesFromIdx(size_t idx, char *dest, size_t offset, size_t size);
-    bool writeBytes(const char *data, size_t size);
+    bool peekBytes(char *dest, size_t offset, size_t size);
+    bool peekBytesAt(size_t idx, char *dest, size_t offset, size_t size);
+    bool pokeBytes(const char *data, size_t size);
 
     void updateCurrentHeader();
     bool isCurrentMessageComplete();
 
     const char *peek();
     size_t capacity();
-    char *begin();
+    char *data();
 
    public:
     Buffer(int initialSize = 4096);
     ~Buffer() = default;
 
-    std::string nextMessage();
-    ssize_t readFd(int fd);
+    std::string popMessage();
+    ssize_t fillFromFd(int fd);
 };
 
 // // 交换两个buffer的缓冲区

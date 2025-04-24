@@ -119,7 +119,7 @@ void Connection<BUFFER_TYPE>::handleMessage() {
     this->lastEventTime_ = Timestamp::now();
     // printf("当前时间: %s\n", this->lastEventTime_.tostring().c_str());
 
-    int n = inputBuffer_.readFd(socket_.fd());
+    int n = inputBuffer_.fillFromFd(socket_.fd());
     if (n == 0) {  // 断开连接
         channel_->remove();
         onClose_(shared_from_this());
@@ -131,7 +131,7 @@ void Connection<BUFFER_TYPE>::handleMessage() {
     // 获取报文
     while (true) {
         // NRVO 会自动优化这里
-        std::string message = inputBuffer_.nextMessage();
+        std::string message = inputBuffer_.popMessage();
         if (message.size() == 0)  // 不完整报文
             break;
 
