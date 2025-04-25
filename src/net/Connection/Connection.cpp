@@ -1,9 +1,8 @@
 #include "Connection.h"
 
-Connection::Connection(Eventloop *loop, std::unique_ptr<Socket> clientSocket)
-    : loop_(loop),
-      socket_(std::move(clientSocket)),
-      channel_(new Channel(loop_, clientSocket_->fd())) {
+Connection::Connection(Eventloop *loop, SocketPtr clientSocket)
+    : loop_(loop), socket_(std::move(clientSocket)) {
+    channel_ = std::make_unique<Channel>(loop_, socket_->fd());
     channel_->enableEvent(EPOLLIN);
     channel_->enableEdgeTrigger();
 
@@ -27,37 +26,42 @@ Connection::Connection(Eventloop *loop, std::unique_ptr<Socket> clientSocket)
     //     std::bind(&Connection::onError, this));
 }
 
-// Connection::~Connection() {
-//      printf("%d 已析构\n", fd());
-// }
-
-void Connection::send(std::string &&message) {
+// 把写操作交给事件循环
+void Connection::postSend(std::string &&message) {
     if (disconnected_) return;
 
     // 难以判定生命周期, 故使用智能指针
-    MessagePtr msg_ptr = std::make_shared<std::string>(message);
+    MessagePtr msg_ptr = std::make_unique<std::string>(std::move(message));
 
     if (loop_->inIOLoop()) {
         // 0工作线程时会用到这个情况
-        sendInIO(message_ptr);
+        prepareSend(std::move(message_ptr));
     } else {
-        loop_->postTask([this] { this->sendInIO(std::move(message_ptr)) });
+        auto self = shared_from_this();
+        loop_->postTask([self]((MessagePtr &&message)) {
+            self->prepareSend(std::move(message_ptr))
+        });
     }
 }
 
-// do send
-void Connection::sendInIO(MessagePtr &&message) {
-    // printf("sendInIO: current thread: %ld\n", syscall(SYS_gettid));
-    output_buffer_.pushMessage(std::forward<MessagePtr>(message));
+// register write event
+void Connection::prepareSend(MessagePtr &&message) {
+    // printf("prepareSend: current thread: %ld\n", syscall(SYS_gettid));
+    output_buffer_.pushMessage(std::move(message));
 
-    // 注册写事件，在被channel回调的 onWritable 中发送数据
-    channel_->enableWriting();
+    channel_->enableEvent(EPOLLOUT);  // do send in Connection::handleWritable()
 }
 
-int Connection::fd() const { return clientSocket_->fd(); }
-std::string Connection::ip() const { return clientSocket_->ip(); }
-uint16_t Connection::port() const { return clientSocket_->port(); }
+bool Connection::isTimeout(time_t now, int maxGap) {
+    return now - lastEventTime_.toint() >= maxGap;
+}
 
+// -- getter --
+int Connection::fd() const { return socket_->fd(); }
+std::string Connection::ip() const { return socket_->ip(); }
+uint16_t Connection::port() const { return socket_->port(); }
+
+// -- setter --
 void Connection::setMessageCallback(MessageCallback cb) {
     message_callback_ = std::move(cb);
 }
@@ -71,28 +75,7 @@ void Connection::setErrorCallback(ConnectionEventCallback cb) {
     error_callback_ = std::move(cb);
 }
 
-bool Connection::isTimeout(time_t now, int maxGap) {
-    return now - lastEventTime_.toint() >= maxGap;
-}
-
-void Connection::onClose() {
-    disconnected_ = true;
-    channel_->remove();
-    on_close_cb_(shared_from_this());
-
-    // 以下不必要，因为tcpserver中关闭connection，connection会关闭socket，socket负责关闭fd
-    // close(fd()); // 关闭客户端的fd。
-}
-
-void Connection::onError() {
-    disconnected_ = true;
-    channel_->remove();
-    on_error_cb_(shared_from_this());
-
-    // 以下不必要，因为tcpserver中关闭connection，connection会关闭socket，socket负责关闭fd
-    // close(fd()); // 关闭客户端的fd。
-}
-
+// -- handler --
 void Connection::handleMessage() {
     lastEventTime_ = Timestamp::now();
     // printf("当前时间: %s\n", lastEventTime_.tostring().c_str());
@@ -115,18 +98,16 @@ void Connection::handleMessage() {
         on_message_cb_(shared_from_this(), message);
     }
 }
-
 // 可写立即尝试全部写入
 // 全部发送完毕后，禁用写并回调TcpServer::sendComplete
 void Connection::handleWritable() {
     ssize_t nsend = output_buffer_.sendAllToFd(fd());
 
     if (output_buffer_.empty()) {
-        channel_->disableWriting();
+        channel_->disableEvent(EPOLLOUT);
         on_send_complete_cb_(shared_from_this());
     }
 }
-
 void Connection::handleClose() {
     disconnected_ = true;
     channel_->remove();
@@ -134,7 +115,6 @@ void Connection::handleClose() {
 
     // close(fd()); // Socket会自己关闭，不用管它
 }
-
 void Connection::handleError() {
     disconnected_ = true;
     channel_->remove();

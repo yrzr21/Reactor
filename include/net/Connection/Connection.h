@@ -36,11 +36,8 @@ class Connection : public std::enable_shared_from_this<Connection> {
     Connection(Eventloop *loop, SocketPtr clientSocket);
     ~Connection() = default;
 
-    // 向客户端发送数据
-    void send(std::string &&message);
-    // I/O线程中自动添加报文头后，注册写事件;
-    // message生命周期不确定，需要使用智能指针
-    void sendInIO(std::shared_ptr<std::string> message);
+    void postSend(std::string &&message);
+    void prepareSend(MessagePtr message);
 
     bool isTimeout(time_t now, int maxGap);
 
@@ -55,14 +52,11 @@ class Connection : public std::enable_shared_from_this<Connection> {
     void setCloseCallback(EventCallback cb);
     void setErrorCallback(EventCallback cb);
 
-    // 被 channel 回调，并会进一步回调 TcpServer
+    // -- handler --
     void handleMessage();
     void handleWritable();
     void handleClose();
     void handleError();
-
-   private:
-    bool isReadFinished(int n);
 };
 
 

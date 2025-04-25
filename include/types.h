@@ -20,7 +20,7 @@ using ChannelPtr = std::unique_ptr<Channel>;
 using EpollPtr = std::unique_ptr<Epoll>;
 using ConnectionPtr = std::shared_ptr<Connection>;
 using LoopPtr = std::unique_ptr<Eventloop>;
-using MessagePtr = std::shared_ptr<std::string>;
+using MessagePtr = std::unique_ptr<std::string>;
 
 // 基础类型别名
 using Task = std::function<void()>;

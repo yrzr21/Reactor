@@ -148,6 +148,7 @@ ssize_t Buffer::fillFromFd(int fd) {
     }
 }
 
+// 自动加上报文头
 void Buffer::pushMessage(MessagePtr&& message) {
     uint32_t size = message->size();
     pokeBytes((char*)&size, sizeof(size));
