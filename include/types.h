@@ -33,7 +33,7 @@ using Seconds = std::chrono::seconds;
 using MutexGuard = std::lock_guard<std::mutex>;
 
 // 回调函数别名
-using MessageCallback = std::function<void(ConnectionPtr, std::string &)>;
+using MessageCallback = std::function<void(ConnectionPtr, MessagePtr)>;
 using ChannelCallback = std::function<void()>;
 using ConnectionEventCallback = std::function<void(ConnectionPtr)>;
 using TimerCallback = std::function<void(std::vector<int>)>;

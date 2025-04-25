@@ -7,13 +7,13 @@ TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen,
       acceptor_(ip, port, mainloop_.get(), nListen) {
     // set handler
     mainloop_->setLoopTimeoutCallback(
-        [this](Eventloop *loop) { this->handleEpollTimeout(loop); });
+        [this](Eventloop *loop) { this->handleLoopTimeout(loop); });
 
     for (int i = 0; i < nSubthreads; i++) {
         LoopPtr loop = std::make_unique<Eventloop>(false, maxGap, heartCycle);
         // set handler
-        loop->setEpollTimtoutCallback(
-            [this](Eventloop *loop) { this->handleEpollTimeout(loop); });
+        loop->setLoopTimeoutCallback(
+            [this](Eventloop *loop) { this->handleLoopTimeout(loop); });
 
         loop->setTimerCallback([this](IntVector &wait_timeout_fds) {
             this->handleTimer(wait_timeout_fds);
@@ -64,8 +64,8 @@ void TcpServer::handleNewConnection(SocketPtr clientSocket) {
 
     // set callback function
     clientConnection->setMessageCallback(
-        [this](ConnectionPtr conn, std::string &message) {
-            this->handleMessage(std::move(conn), message);
+        [this](ConnectionPtr conn, MessagePtr message) {
+            this->handleMessage(std::move(conn), std::move(message));
         };);
     clientConnection->setSendCompleteCallback([this](ConnectionPtr conn) {
         this->handleSendComplete(std::move(conn))
@@ -89,8 +89,8 @@ void TcpServer::handleNewConnection(SocketPtr clientSocket) {
 }
 
 // -- Connection handler --
-void TcpServer::handleMessage(ConnectionPtr connection, std::string &message) {
-    if (message_callback_) message_callback_(connection, message);
+void TcpServer::handleMessage(ConnectionPtr connection, MessagePtr message) {
+    if (message_callback_) message_callback_(connection, std::move(message));
 }
 void TcpServer::handleSendComplete(ConnectionPtr connection) {
     if (send_complete_callback_) send_complete_callback_(connection);
@@ -107,8 +107,8 @@ void TcpServer::handleConnectionError(ConnectionPtr connection) {
 }
 
 // -- Eventloop handler --
-void TcpServer::handleEpollTimeout(Eventloop *loop) {
-    if (epoll_timeout_callback_) epoll_timeout_callback_(loop);
+void TcpServer::handleLoopTimeout(Eventloop *loop) {
+    if (loop_timeout_callback_) loop_timeout_callback_(loop);
     // 以及其他业务需求代码
 }
 void TcpServer::handleTimer(IntVector &wait_timeout_fds) {
@@ -125,13 +125,12 @@ void TcpServer::setMessageCallback(MessageCallbackfn) {
 void TcpServer::setSendCompleteCallback(ConnectionEventCallback fn) {
     send_complete_callback_ = fn;
 }
-void TcpServer::setCloseConnectionCallback(ConnectionEventCallback fn) {
+void TcpServer::setConnectionCloseCallback(ConnectionEventCallback fn) {
     connection_close_callback_ = fn;
 }
-void TcpServer::setErrorConnectionCallback(ConnectionEventCallback fn) {
+void TcpServer::setConnectionErrorCallback(ConnectionEventCallback fn) {
     connection_error_callback_ = fn;
 }
 void TcpServer::setLoopTimeoutCallback(LoopTimeoutCallback fn) {
-    epoll_timeout_callback_ = fn;
+    loop_timeout_callback_ = fn;
 }
-void TcpServer::setTimerCallback(TimerCallback fn) { timer_callback_ = fn; }

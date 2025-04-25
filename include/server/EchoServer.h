@@ -1,34 +1,38 @@
 #ifndef ECHOSERVER
 #define ECHOSERVER
-#include <string>
-#include <unistd.h>
 #include <sys/syscall.h>
-#include "tools/TcpServer.h"
-#include "tools/ThreadPool.h"
+#include <unistd.h>
 
-class EchoServer
-{
-private:
+#include <string>
+
+#include "TcpServer.h"
+#include "ThreadPool.h"
+#include "types.h"
+
+class EchoServer {
+   private:
     TcpServer tcpServer_;
     ThreadPool pool_;
 
-public:
-    EchoServer(const std::string &ip, uint16_t port, int nListen, int nSubthreads, int nWorkThreads, int maxGap, int heartCycle, uint16_t bufferType);
-    ~EchoServer();
+   public:
+    EchoServer(const std::string &ip, uint16_t port, int nListen,
+               int nSubthreads, int nWorkThreads, int maxGap, int heartCycle,
+               uint16_t bufferType);
+    ~EchoServer() = default;
 
-    void start(); // 开始监听，有客户端连接后启动事件循环。原文中仅作启动事件循环
+    void start();
     void stop();
 
-    // 以下注册到 tcpServer 中被回调
-    void HandleNewConnection(conn_sptr connection);
-    void HandleOnMessage(conn_sptr connection, std::string &message);
-    void HandleSendComplete(conn_sptr connection);
-    void HandleCloseConnection(conn_sptr connection);
-    void HandleErrorConnection(conn_sptr connection);
-    void HandleEpollTimeout(Eventloop *loop);
+    //  -- handler --
+    void handleNewConnection(ConnectionPtr connection);
+    void handleMessage(ConnectionPtr connection, MessagePtr message);
+    void handleSendComplete(ConnectionPtr connection);
+    void handleConnectionClose(ConnectionPtr connection);
+    void handleConnectionError(ConnectionPtr connection);
+    void handleLoopTimeout(Eventloop *loop);
 
     // 以下函数用于工作线程进行业务计算
-    void OnMessage(conn_sptr connection, std::string &message);
+    void OnMessage(ConnectionPtr connection, MessagePtr message);
 };
 
-#endif // !ECHOSERVER
+#endif  // !ECHOSERVER

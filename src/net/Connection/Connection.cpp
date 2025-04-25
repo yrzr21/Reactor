@@ -90,12 +90,12 @@ void Connection::handleMessage() {
     // 获取报文
     while (true) {
         // NRVO 会自动优化这里
-        std::string message = input_buffer_.popMessage();
+        auto message = input_buffer_.popMessage();
         if (message.size() == 0)  // 不完整报文
             break;
 
-        // 回调 tcpServer::onmessage 进行处理
-        on_message_cb_(shared_from_this(), message);
+        auto ptr = std::make_unique<std::string>(std::move(message));
+        on_message_cb_(shared_from_this(), std::move(ptr));
     }
 }
 // 可写立即尝试全部写入

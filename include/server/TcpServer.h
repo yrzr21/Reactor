@@ -31,8 +31,7 @@ class TcpServer {
     ConnectionEventCallback send_complete_callback_;
     ConnectionEventCallback connection_close_callback_;
     ConnectionEventCallback connection_error_callback_;
-    LoopTimeoutCallback epoll_timeout_callback_;
-    TimerCallback timer_callback_;
+    LoopTimeoutCallback loop_timeout_callback_;
 
    private:
     void removeConnection(int fd);
@@ -48,26 +47,25 @@ class TcpServer {
     void stop();  // 停止所有事件循环
 
     // -- Acceptor hanler --
-    void handleNewConnection(std::unique_ptr<Socket> clientSocket);
+    void handleNewConnection(SocketPtr clientSocket);
 
     // -- Connection handler --
-    void handleMessage(ConnectionPtr connection, std::string &message);
+    void handleMessage(ConnectionPtr connection, MessagePtr message);
     void handleSendComplete(ConnectionPtr connection);
     void handleConnectionClose(ConnectionPtr connection);
     void handleConnectionError(ConnectionPtr connection);
 
     // -- Eventloop handler --
-    void handleEpollTimeout(Eventloop *loop);
+    void handleLoopTimeout(Eventloop *loop);
     void handleTimer(IntVector &wait_timeout_fds);
 
     // -- setter --
     void setNewConenctionCallback(ConnectionEventCallback fn);
     void setMessageCallback(MessageCallbackfn);
     void setSendCompleteCallback(ConnectionEventCallback fn);
-    void setCloseConnectionCallback(ConnectionEventCallback fn);
-    void setErrorConnectionCallback(ConnectionEventCallback fn);
+    void setConnectionCloseCallback(ConnectionEventCallback fn);
+    void setConnectionErrorCallback(ConnectionEventCallback fn);
     void setLoopTimeoutCallback(LoopTimeoutCallback fn);
-    void setTimerCallback(TimerCallback fn);
 };
 
 #endif  // !TCPSERVER
