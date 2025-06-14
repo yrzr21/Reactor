@@ -1,59 +1,61 @@
 #include "ThreadPool.h"
 
-ThreadPool::ThreadPool(size_t nThreads, const std::string &threadType)
-    : isStop_(false), threadType_(threadType) {
-    for (size_t ii = 0; ii < nThreads; ii++)
-        threads_.emplace_back(std::bind(&ThreadPool::thread_func, this));
+ThreadPool::ThreadPool(size_t nThreads, const_str &threadType)
+    : is_stop_(false), threadType_(threadType) {
+    for (size_t i = 0; i < nThreads; i++) {
+        thread_pool_.emplace_back([this]() { this->workerRoutine() });
+    }
 }
 
-ThreadPool::~ThreadPool() { this->stopAll(); }
+ThreadPool::~ThreadPool() { stopAll(); }
 
-void ThreadPool::addTask(Task task) {
+void ThreadPool::addTask(Task &&task) {
     {
-        UniqueLock lock(this->mutex_);
-        this->tasks_.push(task);
+        UniqueLock lock(mutex_);
+        task_queue_.push(task);
     }
-    this->condition_.notify_one();
+    condition_.notify_one();
 }
 
 void ThreadPool::stopAll() {
-    if (this->isStop_) return;
-    this->isStop_ = true;
-    this->condition_.notify_all();
-    for (auto &t : this->threads_) t.join();
+    {
+        UniqueLock lock(mutex_);
+        if (is_stop_) return;
+    }
+
+    is_stop_ = true;
+    condition_.notify_all();
+
+    for (auto &t : thread_pool_) t.join();
 }
 
-size_t ThreadPool::size() { return this->threads_.size(); }
+size_t ThreadPool::size() { return thread_pool_.size(); }
 
-// 线程的启动函数，阻塞在 wait 上
-void ThreadPool::thread_func()  // 用 lambda 函数也可以
-{
-    // 显示线程ID
-    printf("create %s thread(%ld).\n", this->threadType_.c_str(),
+// 线程函数，阻塞在 wait 上
+void ThreadPool::workerRoutine() {
+    // log
+    printf("create %s thread(%ld).\n", threadType_.c_str(),
            syscall(SYS_gettid));
-    // std::cout << "子线程：" << std::this_thread::get_id() << std::endl; //
-    // C++11库分配的id
 
-    while (!isStop_) {
+    while (!is_stop_) {
         Task task;
-        // fetch task
+
+        // fetch
         {
-            UniqueLock lock(this->mutex_);
+            UniqueLock lock(mutex_);
 
-            // wait & check
-            this->condition_.wait(lock, [this] {
-                return ((this->isStop_ == true) ||
-                        (this->tasksWithName_.empty() == false));
-            });
-            if ((this->isStop_ == true) &&
-                (this->tasksWithName_.empty() == true))
-                return;
+            condition_.wait(lock, [this] { return shouldWakeUp(); });
+            if (shouldStop()) return;
 
-            task = std::move(this->tasksWithName_.front());
-            this->tasksWithName_.pop();
+            task = std::move(task_queue_.front());
+            task_queue_.pop();
         }
 
         // run
-        task.first();
+        task();
     }
 }
+
+void ThreadPool::shouldWakeUp() { return is_stop_ || !task_queue_.empty(); }
+
+void ThreadPool::shouldStop() { return is_stop_ && task_queue_.empty(); }

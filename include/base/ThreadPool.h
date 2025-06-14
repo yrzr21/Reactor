@@ -23,21 +23,24 @@ class ThreadPool {
     using Task = std::function<void()>;
     using TaskQueue = std::queue<Task>;
     using AtomicBool = std::atomic_bool;
+    using const_str = const std::string;
 
    private:
-    ThreadVec threads_;
-    TaskQueue tasks_;
+    ThreadVec thread_pool_;
+    TaskQueue task_queue_;
+
     Mutex mutex_;
     CondVar condition_;
-
-    AtomicBool isStop_;
+    AtomicBool is_stop_;
 
     // for debug
     const std::string threadType_;
 
    private:
     // 太长了，还是不用lambda了
-    void thread_func();
+    void workerRoutine();
+    void shouldWakeUp();
+    void shouldStop();
 
    public:
     ThreadPool(size_t nThreads, const std::string &threadType);
@@ -45,7 +48,7 @@ class ThreadPool {
 
     size_t size();
 
-    void addTask(Task task);
+    void addTask(Task &&task);
     void stopAll();
 };
 
