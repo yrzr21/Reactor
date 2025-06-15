@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "Channel.h"
-#include "types.h"
+#include "../types.h"
 
 // 封装 epoll 监视事件
 // MAX_EVENTS：maximum number of events to be returned

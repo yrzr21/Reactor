@@ -2,7 +2,7 @@
 
 template <int MAX_EVENTS>
 Epoll<MAX_EVENTS>::Epoll() {
-    if ((this->epoll_fd_ = epoll_create(1)) == -1) {
+    if ((epoll_fd_ = epoll_create(1)) == -1) {
         printf("epoll_create() failed(%d).\n", errno);
         exit(-1);
     }
@@ -10,17 +10,16 @@ Epoll<MAX_EVENTS>::Epoll() {
 
 template <int MAX_EVENTS>
 Epoll<MAX_EVENTS>::~Epoll() {
-    close(this->epoll_fd_);
+    close(epoll_fd_);
 }
 
 template <int MAX_EVENTS>
 inline void Epoll<MAX_EVENTS>::controlChannel(EpollOp op, Channel *channel) {
-    epoll_event ev{.data = {.ptr = ch}, .events = ch->events()};
+    epoll_event ev{.data = {.ptr = channel}, .events = channel->events()};
+    epoll_event *pev = (op == EpollOp::Del ? nullptr : &ev);
 
-    int cmd = static_cast<int>(op);
-    epoll_event *pev = (cmd == EPOLL_CTL_DEL ? nullptr : &ev);
-
-    if (::epoll_ctl(epollfd_, cmd, ch->fd(), pev) == -1) {
+    int cmd = static_cast<int>(op);  // 转回原宏
+    if (::epoll_ctl(epollfd_, cmd, channel->fd(), pev) == -1) {
         // todo: 更合理的错误处理
         perror("epoll_ctl() failed.\n");
         exit(-1);
@@ -30,21 +29,20 @@ inline void Epoll<MAX_EVENTS>::controlChannel(EpollOp op, Channel *channel) {
 // 监听，返回发生的事件
 template <int MAX_EVENTS>
 std::vector<Channel *> Epoll<MAX_EVENTS>::loop(int timeout) {
-    // bzero(this->events_, sizeof(this->events_));
+    // bzero(events_, sizeof(events_));
 
-    int n = epoll_wait(epollfd_, this->events_, MAX_EVENTS, timeout);
+    int n = epoll_wait(epollfd_, events_, MAX_EVENTS, timeout);
     if (n < 0) {
         perror("epoll_wait() failed");
         exit(-1);
-    } else if (n == 0) {
-        // todo: 超时
     }
+    // 超时由 eventloop 负责处理
 
     // > 0
     std::vector<Channel *> active_channels;
-    for (int ii = 0; ii < n; ii++) {
-        Channel *ch = static_cast<Channel *>(this->events_[ii].data.ptr);
-        ch->setRevents(this->events_[ii].events);
+    for (int i = 0; i < n; i++) {
+        Channel *ch = static_cast<Channel *>(events_[i].data.ptr);
+        ch->setRevents(events_[i].events);
 
         active_channels.push_back(ch);
     }
