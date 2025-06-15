@@ -6,11 +6,11 @@
 
 #include <functional>
 
+#include "../types.h"
 #include "Connection.h"
 #include "Eventloop.h"
 #include "InetAddress.h"
 #include "Socket.h"
-#include "types.h"
 
 // todo: 对外接口，隐藏 epoll 细节
 // enum class MonitorEvent : uint32_t {
@@ -44,10 +44,10 @@ class Channel {
     uint32_t revents_ = 0;  // returned events
 
     // call back
-    ChannelCallback onReadable_;
-    ChannelCallback onWritable_;
-    ChannelCallback onClose_;
-    ChannelCallback onError_;
+    OnChannelEvent handle_readable_;
+    OnChannelEvent handle_writable_;
+    OnChannelEvent handle_close_;
+    OnChannelEvent handle_error_;
 
    public:
     Channel(Eventloop *loop, int fd);
@@ -55,7 +55,7 @@ class Channel {
     Channel(const Channel &) = delete;
     Channel &operator=(const Channel &) = delete;
 
-    void handleEvent();
+    void onEvent();
 
     void enableEdgeTrigger();
     void enableEvent(uint32_t events);
@@ -71,7 +71,7 @@ class Channel {
     uint32_t events() const;
 
     void setRevents(uint32_t revents);
-    void setEventHandler(HandlerType type, ChannelCallback fn);
+    void setEventHandler(HandlerType type, OnChannelEvent fn);
 };
 
 #endif

@@ -7,17 +7,17 @@ Channel::Channel(Eventloop *loop, int fd) : loop_(loop), fd_(fd) {}
 //     if (loop_ && inEpoll_) unregister();
 // }
 
-void Channel::handleEvent() {
-    if (this->revents_ & EPOLLRDHUP)
+void Channel::onEvent() {
+    if (revents_ & EPOLLRDHUP)
         // 对方已关闭，有些系统检测不到，可以使用EPOLLIN，recv()返回0。
-        this->onClose_();
-    else if (this->revents_ & (EPOLLIN | EPOLLPRI))
-        this->onReadable_();
-    else if (this->revents_ & EPOLLOUT)
-        this->onWritable_();
+        handle_close_();
+    else if (revents_ & (EPOLLIN | EPOLLPRI))
+        handle_readable_();
+    else if (revents_ & EPOLLOUT)
+        handle_writable_();
     else
         // 其它事件都视为错误
-        this->onError_();
+        handle_error_();
 }
 
 // void Channel::setinepoll() { inepoll_ = true; }
@@ -26,46 +26,46 @@ void Channel::enableEdgeTrigger() { events_ = events_ | EPOLLET; }
 
 // 监视读写事件 EPOLLIN 或 EPOLLOUT
 void Channel::enableEvent(uint32_t events) {
-    this->events |= events;
-    this->loop_->updateChannel(this);
+    events |= events;
+    loop_->updateChannel(this);
 }
 void Channel::disableEvent(uint32_t events) {
-    if (events & EPOLLIN) this->events &= ~EPOLLIN;
-    if (events & EPOLLOUT) this->events &= ~EPOLLOUT;
-    this->loop_->updateChannel(this);
+    if (events & EPOLLIN) events &= ~EPOLLIN;
+    if (events & EPOLLOUT) events &= ~EPOLLOUT;
+    loop_->updateChannel(this);
 }
 
 void Channel::unregister() {
-    this->disableEvent(EPOLLIN | EPOLLOUT);
-    this->loop_->removeChannel(this);
-    this->loop_ = nullptr;
+    disableEvent(EPOLLIN | EPOLLOUT);
+    loop_->removeChannel(this);
+    loop_ = nullptr;
 }
 bool Channel::isRegistered() { return loop_ != nullptr; }
 
 // ?
 // void Channel::diableAll() {
-//     this->events_ = 0;
-//     this->loop_->updateChannel(this);
+//     events_ = 0;
+//     loop_->updateChannel(this);
 // }
 
 int Channel::fd() { return fd_; }
 uint32_t Channel::events() { return events_; }
 uint32_t Channel::revents() { return revents_; }
 
-void Channel::setRevents(uint32_t revents) { this->revents_ = revents; }
-void Channel::setEventHandler(HandlerType type, ChannelCallback fn) {
+void Channel::setRevents(uint32_t revents) { revents_ = revents; }
+void Channel::setEventHandler(HandlerType type, OnChannelEvent fn) {
     switch (type) {
         case HandlerType::Readable:
-            this->onReadable_ = fn;
+            handle_readable_ = fn;
             break;
         case HandlerType::Writable:
-            this->onWritable_ = fn;
+            handle_writable_ = fn;
             break;
         case HandlerType::Closed:
-            this->onClose_ = fn;
+            handle_close_ = fn;
             break;
         case HandlerType::Error:
-            this->onError_ = fn;
+            handle_error_ = fn;
             break;
     }
 }
