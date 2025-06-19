@@ -58,24 +58,25 @@ void EchoServer::onMessage(ConnectionPtr connection, MessagePtr message) {
     }
 }
 void EchoServer::onSendComplete(ConnectionPtr connection) {
-    // printf("send complete\n");
+    printf("send complete\n");
 }
 void EchoServer::onConnectionClose(ConnectionPtr connection) {
     printf("client(eventfd=%d) disconnected.\n", connection->fd());
 }
 void EchoServer::onConnectionError(ConnectionPtr connection) {
-    // printf("client(eventfd=%d) error.\n", connection->fd());
+    printf("client(eventfd=%d) error.\n", connection->fd());
 }
 void EchoServer::onLoopTimeout(Eventloop *loop) {
-    // printf("loop time out\n");
+    printf("loop time out\n");
 }
 
 // using MessagePtr = std::unique_ptr<std::string>;
 void EchoServer::OnMessage(ConnectionPtr connection, MessagePtr message) {
-    // printf("onMessage runing on thread(%ld).\n", syscall(SYS_gettid));
+    printf("onMessage runing on thread(%ld).\n", syscall(SYS_gettid));
 
     std::string ret = "reply: " + std::move(*message);
     // sleep(2);
     // printf("处理完业务后，将使用connecion对象。\n");
+    printf("ret=%s\n",ret.c_str());
     connection->postSend(std::move(ret));
 }

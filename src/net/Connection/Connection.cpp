@@ -1,4 +1,5 @@
 #include "Connection.h"
+#include<iostream>
 
 Connection::Connection(Eventloop *loop, SocketPtr clientSocket)
     : loop_(loop), socket_(std::move(clientSocket)) {
@@ -13,6 +14,10 @@ Connection::Connection(Eventloop *loop, SocketPtr clientSocket)
                               [this] { this->onWritable(); });
     channel_->setEventHandler(HandlerType::Closed, [this] { this->onClose(); });
     channel_->setEventHandler(HandlerType::Error, [this] { this->onError(); });
+}
+
+Connection::~Connection(){
+    std::cout<<"fd "<<fd()<<" closed"<<std::endl;
 }
 
 // 把写操作交给事件循环

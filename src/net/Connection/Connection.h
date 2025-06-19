@@ -34,7 +34,8 @@ class Connection : public std::enable_shared_from_this<Connection> {
 
    public:
     Connection(Eventloop *loop, SocketPtr clientSocket);
-    ~Connection() = default;
+    ~Connection();
+    // ~Connection() = default;
 
     void postSend(std::string &&message);
     void prepareSend(MessagePtr &&message);

@@ -54,6 +54,7 @@ void TcpServer::stop() {
 void TcpServer::onNewConnection(SocketPtr clientSocket) {
     // create connection
     int loopNo = clientSocket->fd() % io_thread_pool_.size();
+    std::cout << "fd=" << clientSocket->fd() << ", subloop no=" << loopNo << std::endl;
     Eventloop *loopPtr = subloops_[loopNo].get();
     ConnectionPtr clientConnection =
         std::make_shared<Connection>(loopPtr, std::move(clientSocket));
