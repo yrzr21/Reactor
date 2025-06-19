@@ -1,4 +1,2 @@
 #!/bin/bash
-./debug/Reactor 127.0.0.1 5005
-
-# 示例用法
+./debug/Reactor 127.0.0.1 5005 > output.txt

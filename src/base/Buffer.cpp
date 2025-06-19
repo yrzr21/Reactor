@@ -99,7 +99,8 @@ void Buffer::updateCurrentHeader() {
             if (readableFromIdx(current_header_idx_) < sizeof(Header)) return;
             peekBytesAt(current_header_idx_, (char*)&current_header_, 0,
                         sizeof(Header));
-            // current_header_.size = ntohl(current_header_.size);
+            current_header_.size = ntohl(current_header_.size);
+            printf("Buffer::updateCurrentHeader(), size=%d\n",current_header_.size);
         }
 
         // is msg complete?
@@ -122,17 +123,20 @@ bool Buffer::isCurrentMessageComplete() {
 // 把所有的数据都读到 buffer 里，对端关闭返回0
 ssize_t Buffer::fillFromFd(int fd) {
     // ET，所以需要一次读取buffer大小，直到读完
+    printf("Buffer::fillFromFd %d\n", fd);
     uint32_t nread = 0;
     while (true) {
         int first;
-        if (writer_idx_ > reader_idx_) {
+        if (writer_idx_ > reader_idx_ || empty()) {
             first = capacity() - writer_idx_;
         } else {
             first = reader_idx_ - writer_idx_;
         }
 
+    printf("Buffer::fillFromFd first=%d\n", first);
         // read
         int n = ::read(fd, data() + writer_idx_, first);
+    printf("Buffer::fillFromFd n=%d\n", n);
         if (n == 0) {
             return 0;  // 对端关闭
         } else if (n < 0) {
@@ -151,8 +155,12 @@ ssize_t Buffer::fillFromFd(int fd) {
 // 自动加上报文头
 void Buffer::pushMessage(MessagePtr&& message) {
     uint32_t size = message->size();
-    pokeBytes((char*)&size, sizeof(size));
+    uint32_t net_size = htonl(size);
+    printf("Buffer::pushMessage, net_size=%d,size=%d\n",net_size,size);
+    pokeBytes((char*)&net_size, sizeof(net_size));
+    commitWrite(sizeof(net_size));
     pokeBytes(message->data(), size);
+    commitWrite(size);
 }
 
 // 取出下一个报文，没or不完整则返回空
@@ -172,6 +180,7 @@ std::string Buffer::popMessage() {
     peekBytes(msg.data(), 0, len);
     consumeBytes(len);
 
+    printf("Buffer::popMessage msg = %s\n",msg.c_str());
     return msg;
 }
 

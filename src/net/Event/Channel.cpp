@@ -1,6 +1,8 @@
 #include "Channel.h"
 
-Channel::Channel(Eventloop *loop, int fd) : loop_(loop), fd_(fd) {}
+Channel::Channel(Eventloop *loop, int fd) : loop_(loop), fd_(fd) {
+    loop->controlChannel(EPOLL_CTL_ADD, this);
+}
 
 // ?
 // Channel::~Channel() {
