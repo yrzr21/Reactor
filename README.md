@@ -9,28 +9,21 @@
 - 智能指针管理生命周期，lambda，std::function
 - 如何异步唤醒事件循环处理异步io任务、如何定时清理空闲连接
 - 使用了 move_only_function 优化
-
-
 ## 可调用对象
-- Connection 传递 self 时，需要用 shared_ptr
 #### std::bind 与 lambda
 后者更清晰、易读、高性能
-
 #### 目标函数必须可拷贝
 - 例如**捕获了 unique_ptr 的 lambda** 就不行，因为那会导致lambda自身也变为仅移动
-
-
 ## 生命周期管理
 #### RAII
 - 资源获取即初始化
-
 #### 将本类指针作为智能指针参数
 - 若一个类要传递他自己的的指针出去，需要：
 	1. 继承 enable_shared_from_this 
 	2. 通过 shared_from_this() 传递智能指针
 #### shared_ptr 和 unique_ptr
 - 前者开销不小，能用后者就用后者
-- 而为了异步发送 msg，并用智能指针管理，引出 move_only_function
+- 而为了异步发送 msg，并用 unique_ptr 管理，引出 C++23 move_only_function
 #### Buffer 拷贝次数
 - 报文有2/3次拷贝：
 	1. 网卡->内存中的内核缓冲区(可并行)
@@ -39,9 +32,6 @@
 -  为何不用 `string_view` 优化拷贝次数
 	- 1的优化即DMA，2 的优化即 proactor 模式
 	- 由于无法保证用户 ring_buffer 缓冲区中的数据在被处理前不被覆盖，因此无法使用 string_view，3不可优化
-
-
-
 
 ## 其他问题
 #### 命名规范
@@ -68,4 +58,4 @@
 
 
 #### gcc-11
-- gcc-11 不支持C++23，需要升级...出于各种原因，可能需要手动编译 gcc 13 源码
+- gcc-11 不支持C++23，需要升级
