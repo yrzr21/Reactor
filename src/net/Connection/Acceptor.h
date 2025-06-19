@@ -9,8 +9,8 @@
 
 #include <functional>
 
-#include "../types.h"
-#include "Channel.h"
+#include "../../types.h"
+#include "../Event/Channel.h"
 #include "Socket.h"
 
 int newListenFd();

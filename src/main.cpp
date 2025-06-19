@@ -1,5 +1,5 @@
 #include <signal.h>
-#include "EchoServer.h"
+#include "./server/EchoServer.h"
 
 EchoServer *server;
 

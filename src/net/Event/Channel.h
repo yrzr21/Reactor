@@ -6,11 +6,11 @@
 
 #include <functional>
 
-#include "../types.h"
-#include "Connection.h"
+#include "../../types.h"
+#include "../Connection/Connection.h"
 #include "Eventloop.h"
-#include "InetAddress.h"
-#include "Socket.h"
+#include "../Connection/InetAddress.h"
+#include "../Connection/Socket.h"
 
 // 封装事件。使用fd和loop
 class Channel {

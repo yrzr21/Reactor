@@ -4,11 +4,11 @@
 #include <functional>
 #include <memory>
 
-#include "../types.h"
-#include "Buffer.h"
-#include "Channel.h"
+#include "../../types.h"
+#include "../../base/Buffer.h"
+#include "../Event/Channel.h"
 #include "Socket.h"
-#include "Timestamp.h"
+#include "../../base/Timestamp.h"
 
 // 封装与客户端的连接
 class Connection : public std::enable_shared_from_this<Connection> {

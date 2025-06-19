@@ -12,7 +12,7 @@
 
 #include <vector>
 
-#include "../types.h"
+#include "../../types.h"
 #include "Channel.h"
 
 // 封装 epoll 监视事件

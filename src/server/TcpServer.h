@@ -6,12 +6,12 @@
 #include <string>
 #include <vector>
 
-#include "Acceptor.h"
-#include "Connection.h"
-#include "Eventloop.h"
-#include "InetAddress.h"
-#include "Socket.h"
-#include "ThreadPool.h"
+#include "../net/Connection/Acceptor.h"
+#include "../net/Connection/Connection.h"
+#include "../net/Event/Eventloop.h"
+#include "../net/Connection/InetAddress.h"
+#include "../net/Connection/Socket.h"
+#include "../base/ThreadPool.h"
 #include "../types.h"
 
 class TcpServer {
