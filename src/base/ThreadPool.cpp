@@ -1,9 +1,9 @@
 #include "ThreadPool.h"
 
-ThreadPool::ThreadPool(size_t nThreads, const_str &threadType)
+ThreadPool::ThreadPool(size_t nThreads, ConstStr &threadType)
     : is_stop_(false), threadType_(threadType) {
     for (size_t i = 0; i < nThreads; i++) {
-        thread_pool_.emplace_back([this]() { this->workerRoutine() });
+        thread_pool_.emplace_back([this]() { this->workerRoutine(); });
     }
 }
 
@@ -12,7 +12,7 @@ ThreadPool::~ThreadPool() { stopAll(); }
 void ThreadPool::addTask(Task &&task) {
     {
         UniqueLock lock(mutex_);
-        task_queue_.push(task);
+        task_queue_.push(std::move(task));
     }
     condition_.notify_one();
 }
@@ -56,6 +56,6 @@ void ThreadPool::workerRoutine() {
     }
 }
 
-void ThreadPool::shouldWakeUp() { return is_stop_ || !task_queue_.empty(); }
+bool ThreadPool::shouldWakeUp() { return is_stop_ || !task_queue_.empty(); }
 
-void ThreadPool::shouldStop() { return is_stop_ && task_queue_.empty(); }
+bool ThreadPool::shouldStop() { return is_stop_ && task_queue_.empty(); }

@@ -1,9 +1,15 @@
 #ifndef BUFFER
 #define BUFFER
+#include <arpa/inet.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 
+#include <cstring>
 #include <string>
 #include <vector>
+
+#include "../types.h"
 
 // 4字节长度报文头，自动扩容的 ring buffer
 struct Header {

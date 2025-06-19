@@ -4,11 +4,11 @@ Eventloop::Eventloop(bool is_mainloop, int connection_timeout, int heartCycle)
     : is_mainloop_(is_mainloop), connection_timeout_(connection_timeout) {
     event_channel_->enableEvent(EPOLLIN);  // LT
     event_channel_->setEventHandler(HandlerType::Readable,
-                                    [this] { this->handlePendingTasks(); });
+                                    [this] { this->onWakeUp(); });
 
     timer_channel_->enableEvent(EPOLLIN);  // LT
     timer_channel_->setEventHandler(HandlerType::Readable,
-                                    [this] { this->handleTimer(); });
+                                    [this] { this->onTimer(); });
 
     timer_.start(Seconds(heartCycle), Seconds(heartCycle));
 }
@@ -20,39 +20,39 @@ void Eventloop::run() {
         std::vector<Channel *> rChannels = epoll_->loop(10 * 1000);
 
         if (rChannels.size() != 0) {
-            for (auto ch : rChannels) ch->handleEvent();  // handle
+            for (auto ch : rChannels) ch->onEvent();
         } else {
-            loop_timeout_callback_(this);  // epoll time out
+            handle_loop_timeout_(this);
         }
     }
 }
 
 void Eventloop::stop() {
     stop_ = true;
-    handlePendingTasks();
+    onWakeUp();
 }
 
-void Eventloop::controlChannel(EpollOp op, Channel *ch) {
+void Eventloop::controlChannel(int op, Channel *ch) {
     epoll_->controlChannel(op, ch);
 }
 
 // 判断当前线程是否是I/O线程，即原本的通信事件循环
-bool Eventloop::inIOLoop() { return syscall(SYS_gettid) == loop_tid; }
+bool Eventloop::inIOThread() { return syscall(SYS_gettid) == loop_tid; }
 
-void Eventloop::postTask(std::function<void()> task) {
+void Eventloop::postTask(Task &&task) {
     {
         MutexGuard guard(task_mtx_);
-        tasks_.push(task);
+        tasks_.push(std::move(task));
     }
-    handlePendingTasks();
+    onWakeUp();
 }
 
-void Eventloop::notifyEventLoop() {
+void Eventloop::wakeupEventloop() {
     eventfd_write(event_fd_, 1);  // 写什么都行
 }
 
 // -- handler --
-void Eventloop::handleTimer() {
+void Eventloop::onTimer() {
     if (is_mainloop_) return;
 
     time_t now = time(0);
@@ -65,12 +65,12 @@ void Eventloop::handleTimer() {
         wait_timeout_fds.push_back(first);
     }
 
-    timer_callback_(wait_timeout_fds);
+    handle_timer_(wait_timeout_fds);
 
     for (auto fd : wait_timeout_fds) connections_.erase(fd);
     // printf("\n");
 }
-void Eventloop::handlePendingTasks() {
+void Eventloop::onWakeUp() {
     eventfd_read(event_fd_, 0);
 
     MutexGuard guard(task_mtx_);
@@ -87,7 +87,7 @@ void Eventloop::registerConnection(ConnectionPtr connnection) {
 }
 
 // -- setter --
-void Eventloop::setTimerCallback(TimerCallback fn) { timer_callback_ = fn; }
-void Eventloop::setLoopTimeoutCallback(LoopTimeoutCallback fn) {
-    loop_timeout_callback_ = fn;
+void Eventloop::setTimerHandler(TimerHandler fn) { handle_timer_ = fn; }
+void Eventloop::setLoopTimeoutHandler(LoopTimeoutHandler fn) {
+    handle_loop_timeout_ = fn;
 }

@@ -13,12 +13,13 @@
 #include <mutex>
 #include <queue>
 
+#include "../types.h"
 #include "Connection.h"
 #include "Epoll.h"
 #include "Timer.h"
-#include "types.h"
 
 // 基于 Epoll 继续封装
+// 用于异步 IO 任务
 class Eventloop {
    private:
     // -- basic --
@@ -26,7 +27,7 @@ class Eventloop {
     AtomicBool stop_ = false;
     bool is_mainloop_;
     pid_t loop_tid;
-    LoopTimeoutCallback loop_timeout_callback_;
+    LoopTimeoutHandler handle_loop_timeout_;
 
     // -- connections --
     ConnectionMap connections_;
@@ -34,7 +35,7 @@ class Eventloop {
     time_t connection_timeout_;
 
     // -- async I/O tasks --
-    eventfd_t event_fd_ = eventfd(0, EFD_NONBLOCK);
+    eventfd_t event_fd_ = eventfd(0, EFD_NONBLOCK);  // 注册到事件循环用于唤醒它
     ChannelPtr event_channel_ = std::make_unique<Channel>(this, event_fd_);
     TaskQueue tasks_;
     Mutex task_mtx_;
@@ -42,7 +43,7 @@ class Eventloop {
     // -- timer --
     Timer timer_;
     ChannelPtr timer_channel_ = std::make_unique<Channel>(this, timer_.fd());
-    TimerCallback timer_callback_;
+    TimerHandler handle_timer_;
 
    public:
     Eventloop(bool is_mainloop, int connection_timeout, int heartCycle);
@@ -51,21 +52,20 @@ class Eventloop {
     void run();
     void stop();
 
-    void controlChannel(EpollOp op, Channel *ch);
+    void controlChannel(int op, Channel* ch);
     void registerConnection(ConnectionPtr connnection);
 
-    bool inIOLoop();
+    bool inIOThread();
 
-    void postTask(Task task);
-    void notifyEventLoop();  // notify Eventloop to handle pending tasks
+    void postTask(Task&& task);
+    void wakeupEventloop();  // 唤醒事件循环，它苏醒后会去执行异步任务
+    void onWakeUp();         // 苏醒后处理异步任务
 
-    // -- handler --
-    void handleTimer();
-    void handlePendingTasks();
+    void onTimer();  // 定期苏醒，处理空闲连接
 
     // -- setter --
-    void setTimerCallback(TimerCallback fn);
-    void setLoopTimeoutCallback(LoopTimeoutCallback fn);
+    void setTimerHandler(TimerHandler fn);
+    void setLoopTimeoutHandler(LoopTimeoutHandler fn);
 };
 
 #endif  // !EVENTLOOP

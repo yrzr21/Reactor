@@ -14,38 +14,35 @@ int newListenFd() {
 Acceptor::Acceptor(const std::string &ip, uint16_t port, Eventloop *loop,
                    int backlog)
     : backlog_(backlog),
-      socket_(newListenfd()),
+      socket_(newListenFd()),
       channel_(loop, socket_.fd()),
       loop_(loop) {
     // socket properties
-    socket_.setReuseaddr();
-    socket_.setReuseport();
-    socket_.setTcpnodelay();
-    socket_.setKeepalive();
+    socket_.setReuseaddr(true);
+    socket_.setReuseport(true);
+    socket_.setTcpnodelay(true);
+    socket_.setKeepalive(true);
 
     socket_.bind(InetAddress{ip, port});
 
     channel_.enableEvent(EPOLLIN);
 
-    // auto handler = std::bind(&Acceptor::newconnection, this);
-    // channel_.setEventHandler(HandlerType::Readable, move(handler));
-    // 替代如上写法
     channel_.setEventHandler(HandlerType::Readable,
-                             [this] { this->handleNewConnection(); });
+                             [this] { this->onNewConnection(); });
 }
 
 void Acceptor::listen() { socket_.listen(backlog_); }
 
-void Acceptor::handleNewConnection() {
+void Acceptor::onNewConnection() {
     InetAddress client_addr;
-    int client_fd = socket_.accept(clientaddr);
+    int client_fd = socket_.accept(client_addr);
 
     SocketPtr client_socket = std::make_unique<Socket>(client_fd);
     client_socket->setIpPort(client_addr.ip(), client_addr.port());
 
-    newConnectionCallback_(std::move(client_socket));
+    handle_new_connection_(std::move(client_socket));
 }
 
-void Acceptor::setNewConnectionCallBack(NewConncetionCallBack fn) {
-    new_connection_callback_ = fn;
+void Acceptor::setNewConnectionHandler(NewConnectionHandler fn) {
+    handle_new_connection_ = fn;
 }

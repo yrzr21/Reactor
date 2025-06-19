@@ -161,13 +161,14 @@ std::string Buffer::popMessage() {
 
     // 读头部+转换字节序
     uint32_t netLen;
-    peekBytes(&netLen, 0, sizeof(Header));
+    peekBytes((char*)&netLen, 0, sizeof(Header));
     uint32_t len = ntohl(netLen);
     if (readableSize() < len + sizeof(Header)) return {};  // 数据不完整
 
     consumeBytes(sizeof(Header));
 
-    std::string msg(len);
+    std::string msg;
+    msg.resize(len);
     peekBytes(msg.data(), 0, len);
     consumeBytes(len);
 

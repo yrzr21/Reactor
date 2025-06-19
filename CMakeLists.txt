@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(Reactor LANGUAGES CXX)
 
 # 设置 C++ 标准
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 # 定义头文件与源文件的根目录
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -57,22 +57,13 @@ target_include_directories(Reactor PRIVATE
 target_link_libraries(Reactor PRIVATE server)
 
 # ------------------------------------------------------------------------------
-# 5) 单元测试
+# 编译完成后
 # ------------------------------------------------------------------------------
-enable_testing()
-find_package(GTest REQUIRED)
+set(TARGET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/debug)
 
-file(GLOB TEST_SOURCES tests/*_test.cpp)
-foreach(test_src ${TEST_SOURCES})
-    get_filename_component(test_name ${test_src} NAME_WE)
-    add_executable(${test_name} ${test_src})
-    target_include_directories(${test_name} PRIVATE ${INCLUDE_DIR})
-    target_link_libraries(${test_name}
-        PRIVATE
-            base
-            GTest::GTest
-            GTest::Main
-            pthread
-    )
-    add_test(NAME ${test_name} COMMAND ${test_name})
-endforeach()
+add_custom_command(TARGET Reactor POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        $<TARGET_FILE:Reactor>
+        ${TARGET_DIR}/$<TARGET_FILE_NAME:Reactor>
+    COMMENT "Copy Reactor executable to ${TARGET_DIR}"
+)

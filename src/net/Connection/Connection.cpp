@@ -8,38 +8,29 @@ Connection::Connection(Eventloop *loop, SocketPtr clientSocket)
 
     // SET callback for conncetion
     channel_->setEventHandler(HandlerType::Readable,
-                              [this] { this->hanleMessage(); });
+                              [this] { this->onMessage(); });
     channel_->setEventHandler(HandlerType::Writable,
-                              [this] { this->handleWritable(); });
-    channel_->setEventHandler(HandlerType::Closed,
-                              [this] { this->handleClose(); });
-    channel_->setEventHandler(HandlerType::Error,
-                              [this] { this->handleError(); });
-
-    // channel_->setreadcallback(
-    //     std::bind(&Connection::onmessage, this));
-    // channel_->setWritablecallback(
-    //     std::bind(&Connection::onWritable, this));
-    // channel_->setClosecallback(
-    //     std::bind(&Connection::onClose, this));
-    // channel_->setErrorcallback(
-    //     std::bind(&Connection::onError, this));
+                              [this] { this->onWritable(); });
+    channel_->setEventHandler(HandlerType::Closed, [this] { this->onClose(); });
+    channel_->setEventHandler(HandlerType::Error, [this] { this->onError(); });
 }
 
 // 把写操作交给事件循环
 void Connection::postSend(std::string &&message) {
     if (disconnected_) return;
 
-    // 难以判定生命周期, 故使用智能指针
     MessagePtr msg_ptr = std::make_unique<std::string>(std::move(message));
 
-    if (loop_->inIOLoop()) {
-        // 0工作线程时会用到这个情况
-        prepareSend(std::move(message_ptr));
+    if (loop_->inIOThread()) {
+        prepareSend(std::move(msg_ptr));  // 0 工作线程
     } else {
         auto self = shared_from_this();
-        loop_->postTask([self]((MessagePtr &&message)) {
-            self->prepareSend(std::move(message_ptr))
+        // auto task = [this, ptr = std::move(msg_ptr)]() mutable {
+        //     this->prepareSend(std::move(ptr));
+        // };
+        // loop_->postTask(std::move(task));
+        loop_->postTask([this, ptr = std::move(msg_ptr)]() mutable {
+            this->prepareSend(std::move(ptr));
         });
     }
 }
@@ -62,29 +53,29 @@ std::string Connection::ip() const { return socket_->ip(); }
 uint16_t Connection::port() const { return socket_->port(); }
 
 // -- setter --
-void Connection::setMessageCallback(MessageCallback cb) {
-    message_callback_ = std::move(cb);
+void Connection::setMessageHandler(MessageHandler cb) {
+    handle_message_ = std::move(cb);
 }
-void Connection::setSendCompleteCallback(ConnectionEventCallback cb) {
-    send_complete_callback_ = std::move(cb);
+void Connection::setSendCompleteHandler(ConnectionEventHandler cb) {
+    handle_send_complete_ = std::move(cb);
 }
-void Connection::setCloseCallback(ConnectionEventCallback cb) {
-    close_callback_ = std::move(cb);
+void Connection::setCloseHandler(ConnectionEventHandler cb) {
+    handle_close_ = std::move(cb);
 }
-void Connection::setErrorCallback(ConnectionEventCallback cb) {
-    error_callback_ = std::move(cb);
+void Connection::setErrorHandler(ConnectionEventHandler cb) {
+    handle_error_ = std::move(cb);
 }
 
 // -- handler --
-void Connection::handleMessage() {
+void Connection::onMessage() {
     lastEventTime_ = Timestamp::now();
     // printf("当前时间: %s\n", lastEventTime_.tostring().c_str());
 
-    int n = input_buffer_.fillFromFd(socket_.fd());
+    int n = input_buffer_.fillFromFd(socket_->fd());
     if (n == 0) {
-        handleClose();
+        onClose();
     } else if (n == -1) {
-        handleError();
+        onError();
     }
 
     // 获取报文
@@ -95,30 +86,30 @@ void Connection::handleMessage() {
             break;
 
         auto ptr = std::make_unique<std::string>(std::move(message));
-        on_message_cb_(shared_from_this(), std::move(ptr));
+        handle_message_(shared_from_this(), std::move(ptr));
     }
 }
 // 可写立即尝试全部写入
 // 全部发送完毕后，禁用写并回调TcpServer::sendComplete
-void Connection::handleWritable() {
+void Connection::onWritable() {
     ssize_t nsend = output_buffer_.sendAllToFd(fd());
 
     if (output_buffer_.empty()) {
         channel_->disableEvent(EPOLLOUT);
-        on_send_complete_cb_(shared_from_this());
+        handle_send_complete_(shared_from_this());
     }
 }
-void Connection::handleClose() {
+void Connection::onClose() {
     disconnected_ = true;
-    channel_->remove();
-    close_callback_(shared_from_this());
+    channel_->unregister();
+    handle_close_(shared_from_this());
 
     // close(fd()); // Socket会自己关闭，不用管它
 }
-void Connection::handleError() {
+void Connection::onError() {
     disconnected_ = true;
-    channel_->remove();
-    error_callback_(shared_from_this());
+    channel_->unregister();
+    handle_error_(shared_from_this());
 
     // close(fd()); // Socket会自己关闭，不用管它
 }

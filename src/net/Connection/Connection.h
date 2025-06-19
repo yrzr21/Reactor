@@ -4,11 +4,11 @@
 #include <functional>
 #include <memory>
 
+#include "../types.h"
 #include "Buffer.h"
 #include "Channel.h"
 #include "Socket.h"
 #include "Timestamp.h"
-#include "types.h"
 
 // 封装与客户端的连接
 class Connection : public std::enable_shared_from_this<Connection> {
@@ -27,17 +27,17 @@ class Connection : public std::enable_shared_from_this<Connection> {
     AtomicBool disconnected_ = false;
 
     // -- 回调 TcpServer --
-    MessageCallback message_callback_;
-    ConnectionEventCallback send_complete_callback_;
-    ConnectionEventCallback close_callback_;
-    ConnectionEventCallback error_callback_;
+    MessageHandler handle_message_;
+    ConnectionEventHandler handle_send_complete_;
+    ConnectionEventHandler handle_close_;
+    ConnectionEventHandler handle_error_;
 
    public:
     Connection(Eventloop *loop, SocketPtr clientSocket);
     ~Connection() = default;
 
     void postSend(std::string &&message);
-    void prepareSend(MessagePtr message);
+    void prepareSend(MessagePtr &&message);
 
     bool isTimeout(time_t now, int maxGap);
 
@@ -47,18 +47,16 @@ class Connection : public std::enable_shared_from_this<Connection> {
     uint16_t port() const;
 
     // -- setter --
-    void setMessageCallback(MessageCallback cb);
-    void setSendCompleteCallback(EventCallback cb);
-    void setCloseCallback(EventCallback cb);
-    void setErrorCallback(EventCallback cb);
+    void setMessageHandler(MessageHandler cb);
+    void setSendCompleteHandler(ConnectionEventHandler cb);
+    void setCloseHandler(ConnectionEventHandler cb);
+    void setErrorHandler(ConnectionEventHandler cb);
 
     // -- handler --
-    void handleMessage();
-    void handleWritable();
-    void handleClose();
-    void handleError();
+    void onMessage();
+    void onWritable();
+    void onClose();
+    void onError();
 };
-
-
 
 #endif  // !CONNECTION

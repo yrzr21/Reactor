@@ -2,34 +2,30 @@
 
 TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen,
                      int nSubthreads, int maxGap, int heartCycle)
-    : mainloop_(new Eventloop(true, maxGap, heartCycle)),
-      pool_(nSubthreads, "I/O"),
+    : mainloop_(std::make_unique<Eventloop>(true, maxGap, heartCycle)),
+      io_thread_pool_(nSubthreads, "I/O"),
       acceptor_(ip, port, mainloop_.get(), nListen) {
     // set handler
-    mainloop_->setLoopTimeoutCallback(
-        [this](Eventloop *loop) { this->handleLoopTimeout(loop); });
+    mainloop_->setLoopTimeoutHandler(
+        [this](Eventloop *loop) { this->onLoopTimeout(loop); });
 
     for (int i = 0; i < nSubthreads; i++) {
         LoopPtr loop = std::make_unique<Eventloop>(false, maxGap, heartCycle);
         // set handler
-        loop->setLoopTimeoutCallback(
-            [this](Eventloop *loop) { this->handleLoopTimeout(loop); });
+        loop->setLoopTimeoutHandler(
+            [this](Eventloop *loop) { this->onLoopTimeout(loop); });
 
-        loop->setTimerCallback([this](IntVector &wait_timeout_fds) {
-            this->handleTimer(wait_timeout_fds);
+        loop->setTimerHandler([this](IntVector &wait_timeout_fds) {
+            this->onTimer(wait_timeout_fds);
         });
 
         // run loop in thread
-        pool_.addTask(std::bind(&Eventloop::run, loop.get()), "Eventloop::run");
+        io_thread_pool_.addTask([ptr = loop.get()] { ptr->run(); });
         subloops_.push_back(std::move(loop));
     }
 
-    // acceptor_.setNewConnection_cb(std::bind(
-    //     &TcpServer::handleNewConnection, this, std::placeholders::_1));
-
-    acceptor_.setNewConnectionCallBack([this](ConnectionPtr conn) {
-        this->handleNewConnection(std::move(conn));
-    };);
+    acceptor_.setNewConnectionHandler(
+        [this](SocketPtr conn) { this->onNewConnection(std::move(conn)); });
 }
 
 TcpServer::~TcpServer() { stop(); }
@@ -50,32 +46,31 @@ void TcpServer::stop() {
     for (size_t i = 0; i < subloops_.size(); i++) subloops_[i]->stop();
     // printf("从事件循环已停止\n");
 
-    pool_.stopAll();
+    io_thread_pool_.stopAll();
     // printf("I/O线程已停止\n");
 }
 
 // -- Acceptor hanler --
-void TcpServer::handleNewConnection(SocketPtr clientSocket) {
+void TcpServer::onNewConnection(SocketPtr clientSocket) {
     // create connection
-    int loopNo = clientSocket->fd() % pool_.size();
+    int loopNo = clientSocket->fd() % io_thread_pool_.size();
     Eventloop *loopPtr = subloops_[loopNo].get();
     ConnectionPtr clientConnection =
-        std::make_shared<bufferType_>(loopPtr, std::move(clientSocket));
+        std::make_shared<Connection>(loopPtr, std::move(clientSocket));
 
     // set callback function
-    clientConnection->setMessageCallback(
+    clientConnection->setMessageHandler(
         [this](ConnectionPtr conn, MessagePtr message) {
-            this->handleMessage(std::move(conn), std::move(message));
-        };);
-    clientConnection->setSendCompleteCallback([this](ConnectionPtr conn) {
-        this->handleSendComplete(std::move(conn))
-    };);
-    clientConnection->setCloseCallback([this](ConnectionPtr conn) {
-        this->handleConnectionClose(std::move(conn))
-    };);
-    clientConnection->setErrorCallback([this](ConnectionPtr conn) {
-        this->handleConnectionError(std::move(conn))
-    };);
+            this->onMessage(std::move(conn), std::move(message));
+        });
+    clientConnection->setSendCompleteHandler(
+        [this](ConnectionPtr conn) { this->onSendComplete(std::move(conn)); });
+    clientConnection->setCloseHandler([this](ConnectionPtr conn) {
+        this->onConnectionClose(std::move(conn));
+    });
+    clientConnection->setErrorHandler([this](ConnectionPtr conn) {
+        this->onConnectionError(std::move(conn));
+    });
 
     // register in loop & ConnectionMap
     subloops_[loopNo]->registerConnection(clientConnection);
@@ -85,52 +80,50 @@ void TcpServer::handleNewConnection(SocketPtr clientSocket) {
     }
 
     // 继续回调 EchoServer
-    if (newConnection_cb_) new_connection_callback_(clientConnection);
+    if (handle_new_connection_) handle_new_connection_(clientConnection);
 }
 
 // -- Connection handler --
-void TcpServer::handleMessage(ConnectionPtr connection, MessagePtr message) {
-    if (message_callback_) message_callback_(connection, std::move(message));
+void TcpServer::onMessage(ConnectionPtr connection, MessagePtr message) {
+    if (handle_message_) handle_message_(connection, std::move(message));
 }
-void TcpServer::handleSendComplete(ConnectionPtr connection) {
-    if (send_complete_callback_) send_complete_callback_(connection);
+void TcpServer::onSendComplete(ConnectionPtr connection) {
+    if (handle_send_complete_) handle_send_complete_(connection);
 }
-void TcpServer::handleConnectionClose(ConnectionPtr connection) {
-    if (connection_close_callback_) connection_close_callback_(connection);
+void TcpServer::onConnectionClose(ConnectionPtr connection) {
+    if (handle_connection_close_) handle_connection_close_(connection);
 
     removeConnection(connection->fd());
 }
-void TcpServer::handleConnectionError(ConnectionPtr connection) {
-    if (connection_error_callback_) connection_error_callback_(connection);
+void TcpServer::onConnectionError(ConnectionPtr connection) {
+    if (handle_connection_error_) handle_connection_error_(connection);
 
     removeConnection(connection->fd());
 }
 
 // -- Eventloop handler --
-void TcpServer::handleLoopTimeout(Eventloop *loop) {
-    if (loop_timeout_callback_) loop_timeout_callback_(loop);
+void TcpServer::onLoopTimeout(Eventloop *loop) {
+    if (handle_loop_timeout_) handle_loop_timeout_(loop);
     // 以及其他业务需求代码
 }
-void TcpServer::handleTimer(IntVector &wait_timeout_fds) {
+void TcpServer::onTimer(IntVector &wait_timeout_fds) {
     for (auto fd : wait_timeout_fds) removeConnection(fd);
 }
 
 // -- setter --
-void TcpServer::setNewConenctionCallback(ConnectionEventCallback fn) {
-    new_connection_callback_ = fn;
+void TcpServer::setNewConenctionHandler(ConnectionEventHandler fn) {
+    handle_new_connection_ = fn;
 }
-void TcpServer::setMessageCallback(MessageCallbackfn) {
-    message_callback_ = fn;
+void TcpServer::setMessageHandler(MessageHandler fn) { handle_message_ = fn; }
+void TcpServer::setSendCompleteHandler(ConnectionEventHandler fn) {
+    handle_send_complete_ = fn;
 }
-void TcpServer::setSendCompleteCallback(ConnectionEventCallback fn) {
-    send_complete_callback_ = fn;
+void TcpServer::setConnectionCloseHandler(ConnectionEventHandler fn) {
+    handle_connection_close_ = fn;
 }
-void TcpServer::setConnectionCloseCallback(ConnectionEventCallback fn) {
-    connection_close_callback_ = fn;
+void TcpServer::setConnectionErrorHandler(ConnectionEventHandler fn) {
+    handle_connection_error_ = fn;
 }
-void TcpServer::setConnectionErrorCallback(ConnectionEventCallback fn) {
-    connection_error_callback_ = fn;
-}
-void TcpServer::setLoopTimeoutCallback(LoopTimeoutCallback fn) {
-    loop_timeout_callback_ = fn;
+void TcpServer::setLoopTimeoutHandler(LoopTimeoutHandler fn) {
+    handle_loop_timeout_ = fn;
 }

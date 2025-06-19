@@ -1,37 +1,31 @@
 #include "./Epoll.h"
 
-template <int MAX_EVENTS>
-Epoll<MAX_EVENTS>::Epoll() {
+Epoll::Epoll() {
     if ((epoll_fd_ = epoll_create(1)) == -1) {
         printf("epoll_create() failed(%d).\n", errno);
         exit(-1);
     }
 }
 
-template <int MAX_EVENTS>
-Epoll<MAX_EVENTS>::~Epoll() {
-    close(epoll_fd_);
-}
+Epoll::~Epoll() { close(epoll_fd_); }
 
-template <int MAX_EVENTS>
-inline void Epoll<MAX_EVENTS>::controlChannel(EpollOp op, Channel *channel) {
-    epoll_event ev{.data = {.ptr = channel}, .events = channel->events()};
-    epoll_event *pev = (op == EpollOp::Del ? nullptr : &ev);
+void Epoll::controlChannel(int op, Channel *channel) {
+    epoll_event ev{.events = channel->events(), .data = {.ptr = channel}};
+    epoll_event *pev = (op == EPOLL_CTL_DEL ? nullptr : &ev);
 
-    int cmd = static_cast<int>(op);  // 转回原宏
-    if (::epoll_ctl(epollfd_, cmd, channel->fd(), pev) == -1) {
+    if (::epoll_ctl(epoll_fd_, op, channel->fd(), pev) == -1) {
         // todo: 更合理的错误处理
-        perror("epoll_ctl() failed.\n");
+        printf("epoll_ctl() failed. op=%d,ev=%d,epoll_fd_=%d,channel fd=%d\n",
+               op, pev, epoll_fd_, channel->fd());
         exit(-1);
     }
 }
 
 // 监听，返回发生的事件
-template <int MAX_EVENTS>
-std::vector<Channel *> Epoll<MAX_EVENTS>::loop(int timeout) {
+std::vector<Channel *> Epoll::loop(int timeout) {
     // bzero(events_, sizeof(events_));
 
-    int n = epoll_wait(epollfd_, events_, MAX_EVENTS, timeout);
+    int n = epoll_wait(epoll_fd_, events_, MAX_EVENTS, timeout);
     if (n < 0) {
         perror("epoll_wait() failed");
         exit(-1);

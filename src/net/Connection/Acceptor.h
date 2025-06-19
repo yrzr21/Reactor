@@ -9,9 +9,9 @@
 
 #include <functional>
 
+#include "../types.h"
 #include "Channel.h"
 #include "Socket.h"
-#include "types.h"
 
 int newListenFd();
 
@@ -25,7 +25,7 @@ class Acceptor {
     Eventloop *loop_;
 
     // 回调 TcpServer
-    NewConncetionCallBack new_connection_callback_;
+    NewConnectionHandler handle_new_connection_;
 
    public:
     Acceptor(const std::string &ip, uint16_t port, Eventloop *loop,
@@ -36,10 +36,10 @@ class Acceptor {
     void listen();
 
     // 被 channel 回调，调用 accept 得到一个 fd，并构造为 Socket，回调TcpServer
-    void handleNewConnection();
+    void onNewConnection();
 
     // -- setter --
-    void setNewConnectionCallBack(NewConncetionCallBack fn);
+    void setNewConnectionHandler(NewConnectionHandler fn);
 };
 
 #endif  // !ACCEPTOR
