@@ -44,7 +44,7 @@ void Eventloop::postTask(Task &&task) {
         MutexGuard guard(task_mtx_);
         tasks_.push(std::move(task));
     }
-    onWakeUp();
+    wakeupEventloop();
 }
 
 void Eventloop::wakeupEventloop() {
