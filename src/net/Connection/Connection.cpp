@@ -17,7 +17,7 @@ Connection::Connection(Eventloop *loop, SocketPtr clientSocket)
 }
 
 Connection::~Connection(){
-    std::cout<<"fd "<<fd()<<" closed"<<std::endl;
+    // std::cout<<"fd "<<fd()<<" closed"<<std::endl;
 }
 
 // 把写操作交给事件循环

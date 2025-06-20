@@ -25,7 +25,8 @@ int main(int argc, char *argv[])
     signal(SIGTERM, stopServer);
     signal(SIGINT, stopServer);
 
-    server = new EchoServer(argv[1], atoi(argv[2]), 128, 30, 0, 60, 10);
+    printf("start\n");
+    server = new EchoServer(argv[1], atoi(argv[2]), 128, 30, 20, 60, 10);
     server->start();
 
     return 0;

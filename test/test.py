@@ -6,7 +6,7 @@ import threading
 SERVER_ADDR = ('192.168.58.128', 5005)
 MESSAGE = b'ping' * 10  # 40B
 NUM_REQUESTS = 1000000
-NUM_THREADS = 4  # 并发数
+NUM_THREADS = 30 # 并发数
 
 results = []
 
