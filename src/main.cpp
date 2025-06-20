@@ -22,10 +22,10 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    signal(SIGTERM, stopServer); // 15，kill/killall 默认发送的信号
-    signal(SIGINT, stopServer);  // 2，Ctrl+C发送的信号
+    signal(SIGTERM, stopServer);
+    signal(SIGINT, stopServer);
 
-    server = new EchoServer(argv[1], atoi(argv[2]), 128, 3, 5, 60, 10);
+    server = new EchoServer(argv[1], atoi(argv[2]), 128, 30, 0, 60, 10);
     server->start();
 
     return 0;

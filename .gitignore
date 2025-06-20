@@ -1,7 +1,7 @@
 build
-debug/*
+debug
 history
 test1.cpp
 .vscode
 .gitignore
-output.txt
+test/output.txt
