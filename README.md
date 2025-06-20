@@ -17,13 +17,15 @@
 ## 生命周期管理
 #### RAII
 - 资源获取即初始化
-#### 将本类指针作为智能指针参数
-- 若一个类要传递他自己的的指针出去，需要：
+- 本项目中即：Socket、Epoll、TcpServer
+#### shared_from_this
+- 若一个类要传递他自己的智能指针出去，需要：
 	1. 继承 enable_shared_from_this 
 	2. 通过 shared_from_this() 传递智能指针
+- 本项目中即：Connection
 #### shared_ptr 和 unique_ptr
 - 前者开销不小，能用后者就用后者
-- 而为了异步发送 msg，并用 unique_ptr 管理，引出 C++23 move_only_function
+- 而为了异步传递 msg，并用 unique_ptr 管理，引出 C++23 move_only_function
 #### Buffer 拷贝次数
 - 报文有2/3次拷贝：
 	1. 网卡->内存中的内核缓冲区(可并行)
@@ -49,6 +51,12 @@
 - 提供接口：popMessage、pushMessage，传递完整报文并自动补全/解析报文头
 - 解决TCP半包/粘包/分包问题
 
+## 多线程竞争
+- 一个连接运行在一个事件循环中，所以不需要加锁
+
+
+
+
 
 
 ## 其他问题
@@ -71,6 +79,34 @@
 - 但是为了兼容需要写更多的代码，带来更多的负担，其收益小于成本...所以还是算了吧
 ![](assets/Pasted%20image%2020250617134752.png)
 ![](assets/Pasted%20image%2020250617134804.png)
+
+#### core dump
+- 找到出事的pid
+```undefined
+coredumpctl info
+```
+- 进入调试
+```bash
+coredumpctl debug pid
+```
+- gdb 中
+```bash
+bt
+info locals
+```
+
+#### 实用工具
+- 代码行数统计：
+```swift
+cloc /path/to/your/project
+```
+
+
+- `cppcheck`：分析代码潜在问题以及复杂度
+```bash
+cppcheck --enable=style,performance,unusedFunction --inline-suppr /path/to/project 2>&1 | tee cppcheck_report.txt
+
+```
 
 
 
