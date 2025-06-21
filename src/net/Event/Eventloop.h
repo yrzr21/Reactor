@@ -62,6 +62,7 @@ class Eventloop {
     void onWakeUp();         // 苏醒后处理异步任务
 
     void onTimer();  // 定期苏醒，处理空闲连接
+    void stopTimer();
 
     // -- setter --
     void setTimerHandler(TimerHandler fn);

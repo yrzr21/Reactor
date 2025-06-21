@@ -18,6 +18,9 @@ class Timer {
     void start(Seconds initial, Seconds interval);
     void stop();
     int fd();
+
+    // 读取，消耗fd事件
+    void drain();
 };
 
 #endif

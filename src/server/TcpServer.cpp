@@ -1,13 +1,16 @@
 #include "TcpServer.h"
 
-#include <iostream>
 #include <cassert>
+#include <iostream>
 
 TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen,
                      int nSubthreads, int maxGap, int heartCycle)
     : mainloop_(std::make_unique<Eventloop>(true, maxGap, heartCycle)),
       io_thread_pool_(nSubthreads, "I/O"),
-      acceptor_(ip, port, mainloop_.get(), nListen) {
+      acceptor_(ip, port, mainloop_.get(), nListen),
+      connection_maps_(nSubthreads) {
+    mainloop_->stopTimer();
+
     // set handler
     mainloop_->setLoopTimeoutHandler(
         [this](Eventloop *loop) { this->onLoopTimeout(loop); });
@@ -45,12 +48,13 @@ void TcpServer::removeConnection(int fd) {
     // std::lock_guard<std::mutex> lg(mtx_);
     int loopNo = fd % io_thread_pool_.size();
     UniqueLock lock(*mutexes_[loopNo]);
-    
+
     connection_maps_[loopNo].erase(fd);
 }
 
 void TcpServer::start() {
     acceptor_.listen();
+    std::cout << "listening..." << std::endl;
     mainloop_->run();
 }
 
@@ -98,7 +102,8 @@ void TcpServer::onNewConnection(SocketPtr clientSocket) {
         UniqueLock lock(*mutexes_[loopNo]);
         // std::lock_guard<std::mutex> lg(mtx_);
         // connections_.emplace(clientConnection->fd(), clientConnection);
-        connection_maps_[loopNo].emplace(clientConnection->fd(), clientConnection);
+        connection_maps_[loopNo].emplace(clientConnection->fd(),
+                                         clientConnection);
     }
 
     // 服务器知晓、并准备好一切后，再注册，后续可添加拒绝注册等逻辑

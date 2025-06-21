@@ -1,20 +1,24 @@
 #include "Eventloop.h"
+
 #include <iostream>
 
 Eventloop::Eventloop(bool is_mainloop, int connection_timeout, int heartCycle)
     : is_mainloop_(is_mainloop), connection_timeout_(connection_timeout) {
+    if (is_mainloop) return;
+
     event_channel_->setEventHandler(HandlerType::Readable,
                                     [this] { this->onWakeUp(); });
     timer_channel_->setEventHandler(HandlerType::Readable,
                                     [this] { this->onTimer(); });
     timer_.start(Seconds(heartCycle), Seconds(heartCycle));
 
+    timer_channel_->enableEvent(EPOLLIN);
     event_channel_->enableEvent(EPOLLIN);  // LT
-    timer_channel_->enableEvent(EPOLLIN);  // LT
 }
 
 void Eventloop::run() {
     loop_tid = syscall(SYS_gettid);
+    // std::cout << "Eventloop " << loop_tid << " running..." << std::endl;
 
     while (!stop_) {  // 事件循环
         // 这里不用担心 rChannels 被意外清空，因为：
@@ -74,6 +78,10 @@ void Eventloop::onTimer() {
     }
 
     handle_timer_(wait_timeout_fds);
+}
+void Eventloop::stopTimer() {
+    timer_.stop();
+    timer_channel_->unregister();
 }
 void Eventloop::onWakeUp() {
     eventfd_read(event_fd_, 0);
