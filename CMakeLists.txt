@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(Reactor LANGUAGES CXX)
 
-# 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -g")
 
 # 定义头文件与源文件的根目录
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -57,6 +57,7 @@ target_include_directories(Reactor PRIVATE
 target_link_libraries(Reactor PRIVATE server)
 
 add_executable(test1 ${CMAKE_CURRENT_SOURCE_DIR}/test1.cpp)
+add_executable(client ${CMAKE_CURRENT_SOURCE_DIR}/test/client.cpp)
 
 # ------------------------------------------------------------------------------
 # 编译完成后
@@ -75,4 +76,11 @@ add_custom_command(TARGET test1 POST_BUILD
         $<TARGET_FILE:test1>
         ${TARGET_DIR}/$<TARGET_FILE_NAME:test1>
     COMMENT "Copy test1 executable to ${TARGET_DIR}"
+)
+
+add_custom_command(TARGET client POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        $<TARGET_FILE:client>
+        ${TARGET_DIR}/$<TARGET_FILE_NAME:client>
+    COMMENT "Copy client executable to ${TARGET_DIR}"
 )
