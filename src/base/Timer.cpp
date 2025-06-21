@@ -11,7 +11,7 @@ Timer::Timer() {
 Timer::~Timer() { close(timer_fd_); }
 
 void Timer::start(Seconds initial, Seconds interval) {
-    timeout_ = {{initial.count(), 0}, {initial.count(), 0}};
+    timeout_ = {{interval.count(), 0}, {initial.count(), 0}};
     if (timerfd_settime(timer_fd_, 0, &timeout_, nullptr) == -1) {
         // todo: 更合理的错误处理
         perror("timerfd_settime failed");
