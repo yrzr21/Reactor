@@ -4,8 +4,7 @@
 Connection::Connection(Eventloop *loop, SocketPtr clientSocket)
     : loop_(loop), socket_(std::move(clientSocket)) {
     channel_ = std::make_unique<Channel>(loop_, socket_->fd());
-    channel_->enableEvent(EPOLLIN);
-    channel_->enableEdgeTrigger();
+
 
     // SET callback for conncetion
     channel_->setEventHandler(HandlerType::Readable,
@@ -14,6 +13,10 @@ Connection::Connection(Eventloop *loop, SocketPtr clientSocket)
                               [this] { this->onWritable(); });
     channel_->setEventHandler(HandlerType::Closed, [this] { this->onClose(); });
     channel_->setEventHandler(HandlerType::Error, [this] { this->onError(); });
+
+    // 必须先设置handler，再监听...不然有事件了handler还没好
+    channel_->enableEvent(EPOLLIN);
+    channel_->enableEdgeTrigger();
 }
 
 Connection::~Connection(){
