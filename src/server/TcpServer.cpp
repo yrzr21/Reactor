@@ -1,5 +1,8 @@
 #include "TcpServer.h"
 
+#include <iostream>
+#include <cassert>
+
 TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen,
                      int nSubthreads, int maxGap, int heartCycle)
     : mainloop_(std::make_unique<Eventloop>(true, maxGap, heartCycle)),
@@ -26,13 +29,24 @@ TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen,
 
     acceptor_.setNewConnectionHandler(
         [this](SocketPtr conn) { this->onNewConnection(std::move(conn)); });
+
+    for (int i = 0; i < nSubthreads; ++i) {
+        mutexes_.emplace_back(std::make_unique<Mutex>());
+    }
 }
 
 TcpServer::~TcpServer() { stop(); }
 
 void TcpServer::removeConnection(int fd) {
-    std::lock_guard<std::mutex> lg(mtx_);
-    connections_.erase(fd);
+    // // 检查是否会非所属事件循环线程的线程碰这个 fd
+    // pid_t tid = syscall(SYS_gettid);
+    // assert(connections_[fd]->loop_->loop_tid == tid);
+
+    // std::lock_guard<std::mutex> lg(mtx_);
+    int loopNo = fd % io_thread_pool_.size();
+    UniqueLock lock(*mutexes_[loopNo]);
+    
+    connection_maps_[loopNo].erase(fd);
 }
 
 void TcpServer::start() {
@@ -41,20 +55,22 @@ void TcpServer::start() {
 }
 
 void TcpServer::stop() {
+    std::cout << "stopping..." << std::endl;
     mainloop_->stop();
-    // printf("主事件循环已停止\n");
+    std::cout << "主事件循环已停止" << std::endl;
     for (size_t i = 0; i < subloops_.size(); i++) subloops_[i]->stop();
-    // printf("从事件循环已停止\n");
+    std::cout << "从事件循环已停止" << std::endl;
 
     io_thread_pool_.stopAll();
-    // printf("I/O线程已停止\n");
+    std::cout << "I/O线程已停止" << std::endl;
 }
 
 // -- Acceptor hanler --
 void TcpServer::onNewConnection(SocketPtr clientSocket) {
     // create connection
     int loopNo = clientSocket->fd() % io_thread_pool_.size();
-    // std::cout << "fd=" << clientSocket->fd() << ", subloop no=" << loopNo << std::endl;
+    // std::cout << "fd=" << clientSocket->fd() << ", subloop no=" << loopNo <<
+    // std::endl;
     Eventloop *loopPtr = subloops_[loopNo].get();
     ConnectionPtr clientConnection =
         std::make_shared<Connection>(loopPtr, std::move(clientSocket));
@@ -73,15 +89,21 @@ void TcpServer::onNewConnection(SocketPtr clientSocket) {
         this->onConnectionError(std::move(conn));
     });
 
+    // 继续回调 EchoServer
+    if (handle_new_connection_) handle_new_connection_(clientConnection);
+
     // register in loop & ConnectionMap
     subloops_[loopNo]->registerConnection(clientConnection);
     {
-        std::lock_guard<std::mutex> lg(mtx_);
-        connections_.emplace(clientConnection->fd(), clientConnection);
+        UniqueLock lock(*mutexes_[loopNo]);
+        // std::lock_guard<std::mutex> lg(mtx_);
+        // connections_.emplace(clientConnection->fd(), clientConnection);
+        connection_maps_[loopNo].emplace(clientConnection->fd(), clientConnection);
     }
 
-    // 继续回调 EchoServer
-    if (handle_new_connection_) handle_new_connection_(clientConnection);
+    // 服务器知晓、并准备好一切后，再注册，后续可添加拒绝注册等逻辑
+    // 业务部分仅留别拖太久
+    clientConnection->enable();
 }
 
 // -- Connection handler --

@@ -23,7 +23,11 @@ class TcpServer {
     Acceptor acceptor_;
 
     ConnectionMap connections_;
-    Mutex mtx_;
+
+    // 大小等于 io 事件循环数
+    ConnectionMapVector connection_maps_;
+    MutexPtrVector mutexes_;
+    // Mutex mtx_;
 
     // -- callback --
     ConnectionEventHandler handle_new_connection_;

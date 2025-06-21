@@ -16,7 +16,6 @@ class Connection : public std::enable_shared_from_this<Connection> {
     // -- 基础资源 --
     SocketPtr socket_;
     ChannelPtr channel_;
-    Eventloop *loop_;  // 所处的事件循环
 
     // -- buffer --
     Buffer input_buffer_;
@@ -33,9 +32,12 @@ class Connection : public std::enable_shared_from_this<Connection> {
     ConnectionEventHandler handle_error_;
 
    public:
+    Eventloop *loop_;  // 所处的事件循环
     Connection(Eventloop *loop, SocketPtr clientSocket);
     ~Connection();
     // ~Connection() = default;
+
+    void enable();
 
     void postSend(std::string &&message);
     void prepareSend(MessagePtr &&message);

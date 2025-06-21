@@ -1,16 +1,16 @@
 #include "Eventloop.h"
+#include <iostream>
 
 Eventloop::Eventloop(bool is_mainloop, int connection_timeout, int heartCycle)
     : is_mainloop_(is_mainloop), connection_timeout_(connection_timeout) {
-    event_channel_->enableEvent(EPOLLIN);  // LT
     event_channel_->setEventHandler(HandlerType::Readable,
                                     [this] { this->onWakeUp(); });
-
-    timer_channel_->enableEvent(EPOLLIN);  // LT
     timer_channel_->setEventHandler(HandlerType::Readable,
                                     [this] { this->onTimer(); });
-
     timer_.start(Seconds(heartCycle), Seconds(heartCycle));
+
+    event_channel_->enableEvent(EPOLLIN);  // LT
+    timer_channel_->enableEvent(EPOLLIN);  // LT
 }
 
 void Eventloop::run() {
@@ -55,22 +55,25 @@ void Eventloop::wakeupEventloop() {
 
 // -- handler --
 void Eventloop::onTimer() {
+    // printf("onTimer\n");
     if (is_mainloop_) return;
 
-    time_t now = time(0);
-    MutexGuard guard(connection_mtx_);
-
+    std::cout << "onTimer" << std::endl;
     // printf("%ld Eventloop::handleTimeout()：fd  ", syscall(SYS_gettid));
+
+    timer_.drain();
+    time_t now = time(0);
     IntVector wait_timeout_fds;
-    for (auto [first, second] : connections_) {
-        if (!second->isTimeout(now, connection_timeout_)) continue;
-        wait_timeout_fds.push_back(first);
+    {
+        UniqueLock lock(connection_mtx_);
+        for (auto [first, second] : connections_) {
+            if (!second->isTimeout(now, connection_timeout_)) continue;
+            wait_timeout_fds.push_back(first);
+        }
+        for (auto fd : wait_timeout_fds) connections_.erase(fd);
     }
 
     handle_timer_(wait_timeout_fds);
-
-    for (auto fd : wait_timeout_fds) connections_.erase(fd);
-    // printf("\n");
 }
 void Eventloop::onWakeUp() {
     eventfd_read(event_fd_, 0);

@@ -15,12 +15,18 @@ Connection::Connection(Eventloop *loop, SocketPtr clientSocket)
     channel_->setEventHandler(HandlerType::Error, [this] { this->onError(); });
 
     // 必须先设置handler，再监听...不然有事件了handler还没好
-    channel_->enableEvent(EPOLLIN);
-    channel_->enableEdgeTrigger();
+    // channel_->enableEvent(EPOLLIN);
+    // channel_->enableEdgeTrigger();
 }
 
 Connection::~Connection(){
     // std::cout<<"fd "<<fd()<<" closed"<<std::endl;
+}
+
+// tcpserver 在万事具备的时候才会允许 Connection 在 epoll 注册事件
+void Connection::enable() {
+    channel_->enableEvent(EPOLLIN);
+    channel_->enableEdgeTrigger();
 }
 
 // 把写操作交给事件循环
