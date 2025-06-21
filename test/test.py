@@ -39,9 +39,8 @@ def worker(thread_id: int):
         try:
             s.sendall(encoded)
         except BrokenPipeError:
-            print("连接已关闭，发送失败")
-            return
-        s.sendall(encoded)
+            print("连接已关闭，发送失败", flush=True)
+            break
         _ = decode_message(s)
         end = time.time()
         latencies.append((end - start) * 1000)  # 毫秒
@@ -50,6 +49,7 @@ def worker(thread_id: int):
     results.append(latencies)
 
 def run_test():
+    print()
     threads = []
     start_time = time.time()
 
