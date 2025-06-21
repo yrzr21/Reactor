@@ -5,6 +5,8 @@ Epoll::Epoll() {
         printf("epoll_create() failed(%d).\n", errno);
         exit(-1);
     }
+    // 分配内存但不构造元素
+    active_channels_.reserve(MAX_EVENTS);
 }
 
 Epoll::~Epoll() { close(epoll_fd_); }
@@ -22,8 +24,10 @@ void Epoll::controlChannel(int op, Channel *channel) {
 }
 
 // 监听，返回发生的事件
-std::vector<Channel *> Epoll::loop(int timeout) {
+// 再次进入时清空原 vector
+PChannelVector &Epoll::loop(int timeout) {
     // bzero(events_, sizeof(events_));
+    active_channels_.clear();
 
     int n = epoll_wait(epoll_fd_, events_, MAX_EVENTS, timeout);
     // printf("Epoll: %d events\n", n);
@@ -34,18 +38,17 @@ std::vector<Channel *> Epoll::loop(int timeout) {
     // 超时由 eventloop 负责处理
 
     // > 0
-    std::vector<Channel *> active_channels;
     for (int i = 0; i < n; i++) {
         Channel *ch = static_cast<Channel *>(events_[i].data.ptr);
         // printf("fd %d event ", ch->fd());
         // if (events_[i].events & EPOLLIN) printf("EPOLLIN ");
-        // if (events_[i].events & EPOLLOUT) printf("fd %d EPOLLOUT\n",ch->fd());
+        // if (events_[i].events & EPOLLOUT) printf("fd %d EPOLLOUT", ch->fd());
         // if (events_[i].events & EPOLLRDHUP) printf("EPOLLRDHUP ");
         // printf("\n");
 
         ch->setRevents(events_[i].events);
 
-        active_channels.push_back(ch);
+        active_channels_.push_back(ch);
     }
-    return active_channels;  // NRVO
+    return active_channels_;
 }

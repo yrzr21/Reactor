@@ -42,13 +42,14 @@ using AtomicBool = std::atomic_bool;
 using IntVector = std::vector<int>;
 using Seconds = std::chrono::seconds;
 using MutexGuard = std::lock_guard<std::mutex>;
+using PChannelVector = std::vector<Channel *>;
 
 // 回调函数别名
 using MessageHandler = std::function<void(ConnectionPtr, MessagePtr)>;
 using ChannelEventHandler = std::function<void()>;
 using ConnectionEventHandler = std::function<void(ConnectionPtr)>;
-using TimerHandler = std::function<void(IntVector&)>;
-using LoopTimeoutHandler = std::function<void(Eventloop*)>;
+using TimerHandler = std::function<void(IntVector &)>;
+using LoopTimeoutHandler = std::function<void(Eventloop *)>;
 using NewConnectionHandler = std::function<void(SocketPtr)>;
 
 // 事件处理类型

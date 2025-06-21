@@ -20,8 +20,9 @@
 class Epoll {
    private:
     int epoll_fd_ = -1;
-    static const int MAX_EVENTS = 100;
+    static constexpr int MAX_EVENTS = 100;
     epoll_event events_[MAX_EVENTS];
+    PChannelVector active_channels_;
 
    public:
     Epoll();
@@ -37,7 +38,7 @@ class Epoll {
     void controlChannel(int op, Channel* channel);
 
     // 监听，返回发生的事件
-    std::vector<Channel*> loop(int timeout = -1);
+    PChannelVector& loop(int timeout = -1);
 };
 
 #endif  // !EPOLL

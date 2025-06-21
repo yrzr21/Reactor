@@ -17,10 +17,12 @@ void Eventloop::run() {
     loop_tid = syscall(SYS_gettid);
 
     while (!stop_) {  // 事件循环
-        std::vector<Channel *> rChannels = epoll_->loop(10 * 1000);
+        // 这里不用担心 rChannels 被意外清空，因为：
+        // 1.单线程占用Epoll 2.不处理完事件就不会再次进入 3.Eventloop 占有 Epoll
+        PChannelVector &rChannels = epoll_->loop(10 * 1000);
 
         if (rChannels.size() != 0) {
-            for (auto ch : rChannels) ch->onEvent();
+            for (auto &ch : rChannels) ch->onEvent();
         } else {
             handle_loop_timeout_(this);
         }
