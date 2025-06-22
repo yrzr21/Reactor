@@ -22,8 +22,9 @@ class Buffer {
    private:
     // header of an uncomplete message
     // current_header_.size = -1 means no complete header yet
+    bool has_header_ = false;  // header 是否有效
     Header current_header_;
-    size_t current_header_idx_ = 0;
+    // size_t current_header_idx_ = 0;
 
     std::vector<char> buffer_;  // buffer_ = [reader_idx_, writer_idx_)
     size_t reader_idx_ = 0;     // next read
@@ -34,19 +35,18 @@ class Buffer {
    private:
     // -- helper functions --
     size_t readableSize();
-    size_t readableFromIdx(size_t idx);
     size_t writableBytes();
 
-    void makeSpace(size_t size);
+    void makeSpace();
 
     void consumeBytes(size_t size);
     void commitWrite(size_t size);
 
     bool peekBytes(char *dest, size_t offset, size_t size);
-    bool peekBytesAt(size_t idx, char *dest, size_t offset, size_t size);
+    // bool peekBytesAt(size_t idx, char *dest, size_t offset, size_t size);
     bool pokeBytes(const char *data, size_t size);
 
-    void updateCurrentHeader();
+    void parseHeader();
     bool isCurrentMessageComplete();
 
     const char *peek();
@@ -59,6 +59,7 @@ class Buffer {
 
     void pushMessage(MessagePtr &&message);
     std::string popMessage();
+
     ssize_t fillFromFd(int fd);
     ssize_t sendAllToFd(int fd);
 

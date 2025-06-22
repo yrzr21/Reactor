@@ -1,40 +1,36 @@
 #include "Buffer.h"
 
+#include <iostream>
+
 Buffer::Buffer(int initialSize) : buffer_(initialSize) {}
 
-size_t Buffer::readableSize() { return readableFromIdx(reader_idx_); }
-
-size_t Buffer::readableFromIdx(size_t idx) {
-    if (idx >= capacity()) return 0;
-    if (idx < reader_idx_ || idx >= writer_idx_) return 0;
-
-    if (idx == reader_idx_ && full_) return capacity();
+size_t Buffer::readableSize() {
+    if (full_) return capacity();
 
     if (writer_idx_ >= reader_idx_) {
-        return writer_idx_ - idx;
+        return writer_idx_ - reader_idx_;
     } else {
-        return capacity() - idx + writer_idx_;
+        return capacity() - reader_idx_ + writer_idx_;
     }
 }
+
 size_t Buffer::writableBytes() { return capacity() - readableSize(); }
 
 // 扩容并整理缓冲 & 读写指针
-// makeSpace(0)表示扩容两倍
-void Buffer::makeSpace(size_t size) {
-    if (writableBytes() >= size) return;
-
-    // 扩容为2倍，或满足需求
-    int newSize = std::max(capacity() * 2, capacity() + size);
-    std::vector<char> newBuf(newSize);
+void Buffer::makeSpace() {
+    std::vector<char> newBuf(capacity() * 2);
 
     // 拷贝现有数据
     size_t readable = readableSize();
     peekBytes(newBuf.data(), 0, readable);
+
+    // 通过 swap 扩容
     buffer_.swap(newBuf);
 
     reader_idx_ = 0;
     writer_idx_ = readable;
     full_ = false;
+    // std::cout << "make space to" << capacity() << std::endl;
 }
 
 // 移动写指针来申请内存
@@ -61,15 +57,11 @@ char* Buffer::data() { return buffer_.data(); }
 // 把数据读到 dest 偏移 offset 位置，不调整读指针
 // 通过拷贝读写ring buffer，不调整读写指针
 bool Buffer::peekBytes(char* dest, size_t offset, size_t size) {
-    return peekBytesAt(reader_idx_, dest, offset, size);
-}
-
-bool Buffer::peekBytesAt(size_t idx, char* dest, size_t offset, size_t size) {
-    if (readableFromIdx(idx) < size) return false;
+    if (readableSize() < size) return false;
     dest += offset;
 
-    size_t first = std::min(size, capacity() - idx);
-    std::memcpy(dest, data() + idx, first);
+    size_t first = std::min(size, capacity() - reader_idx_);
+    std::memcpy(dest, data() + reader_idx_, first);
 
     if (first < size) {
         std::memcpy(dest + first, data(), size - first);
@@ -80,7 +72,9 @@ bool Buffer::peekBytesAt(size_t idx, char* dest, size_t offset, size_t size) {
 // 把数据添加到ring buffer
 // 通过拷贝读写ring buffer，不调整读写指针
 bool Buffer::pokeBytes(const char* src, size_t size) {
-    if (size > writableBytes()) return false;
+    if (size > writableBytes()) {
+        makeSpace();
+    }
 
     size_t first = std::min(size, capacity() - writer_idx_);
     std::memcpy(data() + writer_idx_, src, first);
@@ -91,33 +85,23 @@ bool Buffer::pokeBytes(const char* src, size_t size) {
     return true;
 }
 
-// 更新 current_header_ 和 current_header_idx_
-void Buffer::updateCurrentHeader() {
-    while (true) {
-        // no header, read header
-        if (current_header_.size == -1) {
-            if (readableFromIdx(current_header_idx_) < sizeof(Header)) return;
-            peekBytesAt(current_header_idx_, (char*)&current_header_, 0,
-                        sizeof(Header));
-            current_header_.size = ntohl(current_header_.size);
-            // printf("Buffer::updateCurrentHeader(), size=%d\n",current_header_.size);
-        }
+// 解析并消费 header，不完整则不消费
+void Buffer::parseHeader() {
+    if (has_header_) return;
 
-        // is msg complete?
-        if (!isCurrentMessageComplete()) return;
+    size_t readable = readableSize();
+    if (readable < sizeof(Header)) return;
+    has_header_ = true;
 
-        // msg complete, update header
-        size_t size = sizeof(Header) + current_header_.size;
-        current_header_.size = -1;
-        current_header_idx_ = (current_header_idx_ + size) % capacity();
-    }
+    peekBytes((char*)&current_header_, 0, sizeof(Header));
+    consumeBytes(sizeof(Header));
+
+    current_header_.size = ntohl(current_header_.size);
 }
 
 bool Buffer::isCurrentMessageComplete() {
-    if (current_header_.size == -1) return false;
-
-    size_t size = sizeof(Header) + current_header_.size;
-    return readableFromIdx(current_header_idx_) >= size;
+    if (!has_header_) return false;
+    return readableSize() >= current_header_.size;
 }
 
 // 把所有的数据都读到 buffer 里，对端关闭返回0
@@ -126,30 +110,27 @@ ssize_t Buffer::fillFromFd(int fd) {
     // printf("Buffer::fillFromFd %d\n", fd);
     uint32_t nread = 0;
     while (true) {
-        int first;
-        if (writer_idx_ > reader_idx_ || empty()) {
-            first = capacity() - writer_idx_;
-        } else {
-            first = reader_idx_ - writer_idx_;
-        }
+        if (full_) makeSpace();
 
-    // printf("Buffer::fillFromFd first=%d\n", first);
+        size_t first = std::min(writableBytes(), capacity() - writer_idx_);
+        // printf("Buffer::fillFromFd first=%d\n", first);
+
         // read
         int n = ::read(fd, data() + writer_idx_, first);
-    // printf("Buffer::fillFromFd n=%d\n", n);
-        if (n == 0) {
-            return 0;  // 对端关闭
-        } else if (n < 0) {
-            if (errno == EINTR) continue;  // 被中断
-            // 读取完毕
-            if (errno == EAGAIN || errno == EWOULDBLOCK) return nread;
-            return -1;  // 其他错误
+        if (n <= 0) {
+            // 被中断
+            if (n < 0 && errno == EINTR) continue;
+            // 读取完毕，非阻塞 socket 上无数据可读
+            if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
+            // 对端关闭或致命错误
+            return -1;
         }
         nread += n;
-        commitWrite(n);
 
-        updateCurrentHeader();
+        // 不可移到外面统一 commit，每次循环都要借助读写指针判断状态
+        commitWrite(n);
     }
+    return nread;
 }
 
 // 自动加上报文头
@@ -157,56 +138,59 @@ void Buffer::pushMessage(MessagePtr&& message) {
     uint32_t size = message->size();
     uint32_t net_size = htonl(size);
     // printf("Buffer::pushMessage, net_size=%d,size=%d\n",net_size,size);
+
     pokeBytes((char*)&net_size, sizeof(net_size));
     commitWrite(sizeof(net_size));
+
     pokeBytes(message->data(), size);
     commitWrite(size);
 }
 
 // 取出下一个报文，没or不完整则返回空
 std::string Buffer::popMessage() {
-    if (readableSize() <= sizeof(Header)) return {};  // 没报文头
-
-    // 读头部+转换字节序
-    uint32_t netLen;
-    peekBytes((char*)&netLen, 0, sizeof(Header));
-    uint32_t len = ntohl(netLen);
-    if (readableSize() < len + sizeof(Header)) return {};  // 数据不完整
-
-    consumeBytes(sizeof(Header));
+    parseHeader();
+    if (!isCurrentMessageComplete()) return {};
+    uint32_t msg_size = current_header_.size;
 
     std::string msg;
-    msg.resize(len);
-    peekBytes(msg.data(), 0, len);
-    consumeBytes(len);
+    msg.resize(msg_size);
+    peekBytes(msg.data(), 0, msg_size);
+    consumeBytes(msg_size);
 
-    // printf("Buffer::popMessage msg = %s\n",msg.c_str());
+    has_header_ = false;
+
+    // std::cout << "popMessage: " << msg << std::endl;
     return msg;
 }
 
 // 读取数据，发送给fd
 ssize_t Buffer::sendAllToFd(int fd) {
     ssize_t nsend = 0;
-
     size_t readable = readableSize();
-    // if (readable == 0) return 0;
+    if (readable == 0) [[unlikely]]
+        return 0;
 
     size_t first = std::min(readable, capacity() - reader_idx_);
     ssize_t n = ::send(fd, peek(), first, 0);
-    if (n == 0) return 0;
-    if (n > 0) {
-        consumeBytes(n);
-        nsend += n;
+    if (n <= 0) {
+        // 发送缓冲区满了
+        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return 0;
+        // 致命错误 or 致命错误
+        return -1;
     }
 
-    if (first < readable) {
-        ssize_t n = ::send(fd, data(), readable - first, 0);
-        if (n == 0) return nsend;
-        if (n > 0) {
-            consumeBytes(n);
-            nsend += n;
-        }
+    consumeBytes(n);
+    nsend += n;
+    if (nsend < first || nsend == readable)
+        return nsend;  // 发送缓冲区满了 or 发完了
+
+    n = ::send(fd, data(), readable - first, 0);
+    if (n <= 0) {
+        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return nsend;
+        return -1;
     }
+    consumeBytes(n);
+    nsend += n;
 
     return nsend;
 }
