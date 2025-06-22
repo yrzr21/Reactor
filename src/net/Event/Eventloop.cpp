@@ -23,10 +23,10 @@ void Eventloop::run() {
     while (!stop_) {  // 事件循环
         // 这里不用担心 rChannels 被意外清空，因为：
         // 1.单线程占用Epoll 2.不处理完事件就不会再次进入 3.Eventloop 占有 Epoll
-        PChannelVector &rChannels = epoll_->loop(10 * 1000);
+        const PChannelVector &rChannels = epoll_->loop(10 * 1000);
 
-        if (rChannels.size() != 0) {
-            for (auto &ch : rChannels) ch->onEvent();
+        if (rChannels.size() != 0) [[likely]] {
+            for (auto ch : rChannels) ch->onEvent();
         } else {
             handle_loop_timeout_(this);
         }

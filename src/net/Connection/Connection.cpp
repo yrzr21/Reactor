@@ -1,10 +1,10 @@
 #include "Connection.h"
-#include<iostream>
+
+#include <iostream>
 
 Connection::Connection(Eventloop *loop, SocketPtr clientSocket)
     : loop_(loop), socket_(std::move(clientSocket)) {
     channel_ = std::make_unique<Channel>(loop_, socket_->fd());
-
 
     // SET callback for conncetion
     channel_->setEventHandler(HandlerType::Readable,
@@ -19,7 +19,7 @@ Connection::Connection(Eventloop *loop, SocketPtr clientSocket)
     // channel_->enableEdgeTrigger();
 }
 
-Connection::~Connection(){
+Connection::~Connection() {
     // std::cout<<"fd "<<fd()<<" closed"<<std::endl;
 }
 
@@ -86,9 +86,9 @@ void Connection::onMessage() {
     // printf("当前时间: %s\n", lastEventTime_.tostring().c_str());
 
     int n = input_buffer_.fillFromFd(socket_->fd());
-    if (n == 0) {
+    if (n == 0) [[unlikely]] {
         onClose();
-    } else if (n == -1) {
+    } else if (n == -1) [[unlikely]] {
         onError();
     }
 

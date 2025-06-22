@@ -35,13 +35,21 @@ class Socket {
     void listen(int backlog = 1024);
     int accept(InetAddress &clientaddr);
 
-    int fd() const { return this->fd_; }
-    const std::string &ip() const { return this->ip_; }
-    uint16_t port() const { return this->port_; }
-    void setIpPort(const std::string &ip, uint16_t port) {
-        this->ip_ = ip;
-        this->port_ = port;
-    }
+    int fd() const;
+    const std::string &ip() const;
+    uint16_t port() const;
+    void setIpPort(const std::string &ip, uint16_t port);
 };
+
+inline int Socket::fd() const { return this->fd_; }
+
+inline const std::string &Socket::ip() const { return this->ip_; }
+
+inline uint16_t Socket::port() const { return this->port_; }
+
+inline void Socket::setIpPort(const std::string &ip, uint16_t port) {
+    this->ip_ = ip;
+    this->port_ = port;
+}
 
 #endif  // !SOCKET

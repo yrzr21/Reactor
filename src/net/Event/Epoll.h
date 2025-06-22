@@ -38,7 +38,7 @@ class Epoll {
     void controlChannel(int op, Channel* channel);
 
     // 监听，返回发生的事件
-    PChannelVector& loop(int timeout = -1);
+    const PChannelVector& loop(int timeout = -1);
 };
 
 #endif  // !EPOLL

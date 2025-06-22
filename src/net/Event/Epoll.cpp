@@ -25,13 +25,13 @@ void Epoll::controlChannel(int op, Channel *channel) {
 
 // 监听，返回发生的事件
 // 再次进入时清空原 vector
-PChannelVector &Epoll::loop(int timeout) {
+const PChannelVector &Epoll::loop(int timeout) {
     // bzero(events_, sizeof(events_));
     active_channels_.clear();
 
     int n = epoll_wait(epoll_fd_, events_, MAX_EVENTS, timeout);
     // printf("Epoll: %d events\n", n);
-    if (n < 0) {
+    if (n < 0) [[unlikely]] {
         perror("epoll_wait() failed");
         exit(-1);
     }

@@ -4,7 +4,5 @@ history
 test1.cpp
 .vscode
 .gitignore
-test/output.txt
-test/*.data
-test/*.data.old
-test/*.log
+test/output
+test/ignore

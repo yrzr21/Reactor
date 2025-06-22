@@ -8,9 +8,9 @@
 
 #include "../../types.h"
 #include "../Connection/Connection.h"
-#include "Eventloop.h"
 #include "../Connection/InetAddress.h"
 #include "../Connection/Socket.h"
+#include "Eventloop.h"
 
 // 封装事件。使用fd和loop
 class Channel {
@@ -52,5 +52,26 @@ class Channel {
     void setRevents(uint32_t revents);
     void setEventHandler(HandlerType type, ChannelEventHandler fn);
 };
+
+inline bool Channel::isRegistered() { return loop_ != nullptr; }
+
+inline int Channel::fd() { return fd_; }
+
+inline uint32_t Channel::events() { return events_; }
+
+inline uint32_t Channel::revents() { return revents_; }
+
+inline void Channel::onEvent() {
+    if (revents_ & EPOLLRDHUP)
+        handle_close_();
+    else if (revents_ & EPOLLIN)
+        handle_readable_();
+    else if (revents_ & EPOLLOUT)
+        handle_writable_();
+    else
+        handle_error_();
+}
+
+inline void Channel::setRevents(uint32_t revents) { revents_ = revents; }
 
 #endif
