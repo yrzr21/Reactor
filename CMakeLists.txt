@@ -56,7 +56,7 @@ target_include_directories(Reactor PRIVATE
 )
 target_link_libraries(Reactor PRIVATE server)
 
-add_executable(test1 ${CMAKE_CURRENT_SOURCE_DIR}/test1.cpp)
+add_executable(test1 ${CMAKE_CURRENT_SOURCE_DIR}/test1.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/base/Buffer.cpp)
 add_executable(client ${CMAKE_CURRENT_SOURCE_DIR}/test/client.cpp)
 
 # ------------------------------------------------------------------------------

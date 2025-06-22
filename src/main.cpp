@@ -1,4 +1,5 @@
 #include <signal.h>
+#include <iostream>
 #include "./server/EchoServer.h"
 
 EchoServer *server;
@@ -25,8 +26,8 @@ int main(int argc, char *argv[])
     signal(SIGTERM, stopServer);
     signal(SIGINT, stopServer);
 
-    printf("start\n");
-    server = new EchoServer(argv[1], atoi(argv[2]), 128, 30, 20, 60, 10);
+    // std::cout << "start" << std::endl;
+    server = new EchoServer(argv[1], atoi(argv[2]), 128, 3, 3, 60, 10);
     server->start();
 
     return 0;

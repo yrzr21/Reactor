@@ -31,7 +31,7 @@ class EchoServer {
     void onLoopTimeout(Eventloop *loop);
 
     // 以下函数用于工作线程进行业务计算
-    void OnMessage(ConnectionPtr connection, MessagePtr message);
+    void sendMessage(ConnectionPtr connection, MessagePtr message);
 };
 
 #endif  // !ECHOSERVER

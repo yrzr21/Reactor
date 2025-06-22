@@ -38,22 +38,25 @@ void EchoServer::stop() {
 
 //  -- handler --
 void EchoServer::onNewConnection(ConnectionPtr connection) {
+    // std::cout << "New Connection: fd=" << connection->fd() << std::endl;
     // printf("NewConnection:fd=%d,ip=%s,port=%d ok.\n", connection->fd(),
     //        connection->ip().c_str(), connection->port());
 }
 void EchoServer::onMessage(ConnectionPtr connection, MessagePtr message) {
+    // std::cout << "onMessage: fd=" << connection->fd()
+    //           << "msg=" << message->c_str() << std::endl;
     // printf("%ld HandleOnMessage: recv(eventfd=%d):%s\n", syscall(SYS_gettid),
     // connection->fd(), message.c_str());
 
     if (work_thread_pool_.size() == 0) {
-        OnMessage(connection, std::move(message));
+        sendMessage(connection, std::move(message));
     } else {
         // 添加到工作线程。原shared_ptr计数+1，此前的级联调用中计数不变
 
         // ptr 将来可能被继续移动，需要加 mutable
         work_thread_pool_.addTask([this, con_ptr = connection,
                                    msg_ptr = std::move(message)]() mutable {
-            this->OnMessage(con_ptr, std::move(msg_ptr));
+            this->sendMessage(con_ptr, std::move(msg_ptr));
         });
     }
 }
@@ -71,11 +74,13 @@ void EchoServer::onLoopTimeout(Eventloop *loop) {
 }
 
 // using MessagePtr = std::unique_ptr<std::string>;
-void EchoServer::OnMessage(ConnectionPtr connection, MessagePtr message) {
+void EchoServer::sendMessage(ConnectionPtr connection, MessagePtr message) {
     // printf("onMessage runing on thread(%ld).\n", syscall(SYS_gettid));
     usleep(100);
 
     std::string ret = "reply: " + std::move(*message);
+    // std::cout << "sendMessage: fd=" << connection->fd() << ", msg=" << ret
+    //           << ", size=" << ret.size() << std::endl;
     // sleep(2);
     // printf("处理完业务后，将使用connecion对象。\n");
     // printf("ret=%s\n",ret.c_str());
