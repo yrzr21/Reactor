@@ -3,13 +3,15 @@
 set -eo pipefail
 
 SERVER="../debug/Reactor"
-CLIENT="../debug/client"
+# CLIENT="../debug/client"
+CLIENT="../debug/test_max_concurrent_client"
 
-SERVER_IP="192.168.58.128"
-SERVER_PORT=5005
-CLIENT_CONCURRENCY=100
-CLIENT_SEND_COUNT=40000
-CLIENT_PAYLOAD_SIZE=508
+# <ip> <port> <maxListen> <n io loop> <n work loop>  <timeout> <timer_interval>
+SERVER_ARGUMENT="192.168.58.128 5005 4096 8 0 60 60"
+# <ip> <port> <concurrency>
+CLIENT_ARGUMENT="192.168.58.128 5005 40000"
+# <ip> <port> <concurrency> <send_count> <payload_size>
+# CLIENT_ARGUMENT="192.168.58.128 5005 100 40000 508"
 
 OUTPUT_DIR="./output"
 mkdir -p "$OUTPUT_DIR"
@@ -24,26 +26,13 @@ CPU_CORES_SERVER="0-5"
 CPU_CORES_CLIENT="6-7"
 FLAME_GRAPH_DIR="$HOME/opt/FlameGraph"
 
-TOTAL_CLIENT_MESSAGES=$((CLIENT_CONCURRENCY * CLIENT_SEND_COUNT))
-TOTAL_CLIENT_MEMORY_MB=$((TOTAL_CLIENT_MESSAGES * CLIENT_PAYLOAD_SIZE / 1024 / 1024))
-
-# 服务端估算按一个副本存储全部消息（若无拷贝可略减）
-TOTAL_SERVER_MEMORY_MB=$TOTAL_CLIENT_MEMORY_MB
-
-TOTAL_MEMORY_MB=$((TOTAL_CLIENT_MEMORY_MB + TOTAL_SERVER_MEMORY_MB))
-
-echo "估算内存占用："
-echo "  Client 内存: ${TOTAL_CLIENT_MEMORY_MB} MB"
-echo "  Server 内存: ${TOTAL_SERVER_MEMORY_MB} MB"
-echo "  总内存占用: ${TOTAL_MEMORY_MB} MB"
-
 
 sudo swapoff -a
 
 echo "[INFO] Starting server normally..." >&2
 
 # 启动服务器并绑定 CPU
-taskset -c $CPU_CORES_SERVER "$SERVER" "$SERVER_IP" "$SERVER_PORT" > "$SERVER_LOG" 2>&1 &
+taskset -c $CPU_CORES_SERVER "$SERVER" $SERVER_ARGUMENT > "$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 sleep 3
 
@@ -58,7 +47,7 @@ sudo perf record -g -F 999 -o "$PERF_DATA" -p "$SERVER_PID" > "$OUTPUT_DIR/perf.
 
 echo "[INFO] Running client..." >&2
 date >&2
-taskset -c $CPU_CORES_CLIENT "$CLIENT" "$SERVER_IP" "$SERVER_PORT" "$CLIENT_CONCURRENCY" "$CLIENT_SEND_COUNT" "$CLIENT_PAYLOAD_SIZE" > "$CLIENT_LOG" 2>&1
+taskset -c $CPU_CORES_CLIENT "$CLIENT" $CLIENT_ARGUMENT > "$CLIENT_LOG" 2>&1
 date >&2
 
 echo "[INFO] Stopping server..." >&2

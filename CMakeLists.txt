@@ -57,7 +57,8 @@ target_include_directories(Reactor PRIVATE
 target_link_libraries(Reactor PRIVATE server)
 
 add_executable(test1 ${CMAKE_CURRENT_SOURCE_DIR}/test1.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/base/Buffer.cpp)
-add_executable(client ${CMAKE_CURRENT_SOURCE_DIR}/test/client.cpp)
+add_executable(test_send_client ${CMAKE_CURRENT_SOURCE_DIR}/test/clients/test_send_client.cpp)
+add_executable(test_max_concurrent_client ${CMAKE_CURRENT_SOURCE_DIR}/test/clients/test_max_concurrent_client.cpp)
 
 # ------------------------------------------------------------------------------
 # 编译完成后
@@ -78,9 +79,16 @@ add_custom_command(TARGET test1 POST_BUILD
     COMMENT "Copy test1 executable to ${TARGET_DIR}"
 )
 
-add_custom_command(TARGET client POST_BUILD
+add_custom_command(TARGET test_send_client POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
-        $<TARGET_FILE:client>
-        ${TARGET_DIR}/$<TARGET_FILE_NAME:client>
-    COMMENT "Copy client executable to ${TARGET_DIR}"
+        $<TARGET_FILE:test_send_client>
+        ${TARGET_DIR}/$<TARGET_FILE_NAME:test_send_client>
+    COMMENT "Copy test_send_client executable to ${TARGET_DIR}"
+)
+
+add_custom_command(TARGET test_max_concurrent_client POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        $<TARGET_FILE:test_max_concurrent_client>
+        ${TARGET_DIR}/$<TARGET_FILE_NAME:test_max_concurrent_client>
+    COMMENT "Copy test_max_concurrent_client executable to ${TARGET_DIR}"
 )
