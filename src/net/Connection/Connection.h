@@ -21,7 +21,6 @@ class Connection : public std::enable_shared_from_this<Connection> {
     Buffer input_buffer_;
     Buffer output_buffer_;
 
-    // -- 心跳机制 --
     Timestamp lastEventTime_ = Timestamp::now();
     AtomicBool disconnected_ = false;
 

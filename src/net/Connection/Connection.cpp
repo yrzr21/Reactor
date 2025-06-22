@@ -31,26 +31,27 @@ void Connection::enable() {
 
 // 把写操作交给事件循环
 void Connection::postSend(std::string &&message) {
-    if (disconnected_) return;
+    if (disconnected_ || !channel_->isRegistered()) return;
 
     MessagePtr msg_ptr = std::make_unique<std::string>(std::move(message));
 
     if (loop_->inIOThread()) {
         prepareSend(std::move(msg_ptr));  // 0 工作线程
     } else {
-        auto self = shared_from_this();
         // auto task = [this, ptr = std::move(msg_ptr)]() mutable {
         //     this->prepareSend(std::move(ptr));
         // };
         // loop_->postTask(std::move(task));
-        loop_->postTask([this, ptr = std::move(msg_ptr)]() mutable {
-            this->prepareSend(std::move(ptr));
-        });
+        loop_->postTask(
+            [self = shared_from_this(), ptr = std::move(msg_ptr)]() mutable {
+                self->prepareSend(std::move(ptr));
+            });
     }
 }
 
 // register write event
 void Connection::prepareSend(MessagePtr &&message) {
+    if (disconnected_ || !channel_->isRegistered()) return;
     // printf("prepareSend: current thread: %ld\n", syscall(SYS_gettid));
     output_buffer_.pushMessage(std::move(message));
 
