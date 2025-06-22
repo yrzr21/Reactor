@@ -1,45 +1,34 @@
 #include "Socket.h"
 
-Socket::Socket(int fd) : fd_(fd) {}
-Socket::~Socket() { ::close(this->fd_); }
-
-int Socket::fd() const { return this->fd_; }
-std::string Socket::ip() const { return this->ip_; }
-uint16_t Socket::port() const { return this->port_; }
-void Socket::setIpPort(const std::string &ip, uint16_t port) {
-    this->ip_ = ip;
-    this->port_ = port;
-}
-
 void Socket::setOption(int level, int optname, bool on) {
     int optval = static_cast<int>(on);
-    if (::setsockopt(this->fd_, level, optname, &optval, sizeof(optval)) != 0) {
+    if (::setsockopt(fd_, level, optname, &optval, sizeof(optval)) != 0) {
         // TODO: 日志或错误处理
         perror("setOption failed");
         exit(-1);
     }
 }
+
 void Socket::setReuseaddr(bool on) { setOption(SOL_SOCKET, SO_REUSEADDR, on); }
 void Socket::setReuseport(bool on) { setOption(SOL_SOCKET, SO_REUSEPORT, on); }
 void Socket::setTcpnodelay(bool on) { setOption(IPPROTO_TCP, TCP_NODELAY, on); }
 void Socket::setKeepalive(bool on) { setOption(SOL_SOCKET, SO_KEEPALIVE, on); }
 
 void Socket::bind(const InetAddress &addr) {
-    if (::bind(this->fd_, (const sockaddr *)addr.addr(), sizeof(sockaddr)) <
-        0) {
+    if (::bind(fd_, (const sockaddr *)addr.addr(), sizeof(sockaddr)) < 0) {
         // TODO: 日志或错误处理
         perror("bind() failed");
-        close(this->fd_);
+        close(fd_);
         exit(-1);
     }
 
-    this->setIpPort(addr.ip(), addr.port());
+    setIpPort(addr.ip(), addr.port());
 }
 
 void Socket::listen(int backlog) {
-    if (::listen(this->fd_, backlog) != 0) {
+    if (::listen(fd_, backlog) != 0) {
         perror("listen() failed");
-        close(this->fd_);
+        close(fd_);
         exit(-1);
     }
 }
@@ -47,8 +36,7 @@ void Socket::listen(int backlog) {
 int Socket::accept(InetAddress &clientaddr) {
     sockaddr_in peeraddr;
     socklen_t len = sizeof(peeraddr);
-    int clientfd =
-        accept4(this->fd_, (sockaddr *)&peeraddr, &len, SOCK_NONBLOCK);
+    int clientfd = accept4(fd_, (sockaddr *)&peeraddr, &len, SOCK_NONBLOCK);
 
     clientaddr.setaddr(peeraddr);
 
