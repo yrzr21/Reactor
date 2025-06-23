@@ -56,7 +56,18 @@ target_include_directories(Reactor PRIVATE
 )
 target_link_libraries(Reactor PRIVATE server)
 
-add_executable(test1 ${CMAKE_CURRENT_SOURCE_DIR}/test1.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/base/Buffer.cpp)
+file(GLOB_RECURSE  SOURCES ${SRC_DIR}/*.cpp)
+# 过滤不需要的 cpp
+list(REMOVE_ITEM SOURCES ${SRC_DIR}/main.cpp)
+foreach(file ${SOURCES})
+    if (NOT file MATCHES ".*/base/Buffer/.*\\.cpp$")
+        list(APPEND FILTERED_SOURCES ${file})
+    endif()
+endforeach()
+set(SOURCES ${FILTERED_SOURCES})
+
+add_executable(test1 ${SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/test1.cpp)
+
 add_executable(test_send_client ${CMAKE_CURRENT_SOURCE_DIR}/test/clients/test_send_client.cpp)
 add_executable(test_max_concurrent_client ${CMAKE_CURRENT_SOURCE_DIR}/test/clients/test_max_concurrent_client.cpp)
 

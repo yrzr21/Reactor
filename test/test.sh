@@ -13,6 +13,10 @@ CLIENT_ARGUMENT="192.168.58.128 5005 40000"
 # <ip> <port> <concurrency> <send_count> <payload_size>
 # CLIENT_ARGUMENT="192.168.58.128 5005 100 40000 508"
 
+# VIRTUAL_IP_START_FRONT="192.168.58"
+# VIRTUAL_IP_START_BACK=129
+# DEVICE="ens33"
+
 OUTPUT_DIR="./output"
 mkdir -p "$OUTPUT_DIR"
 
@@ -28,6 +32,11 @@ FLAME_GRAPH_DIR="$HOME/opt/FlameGraph"
 
 
 sudo swapoff -a
+
+# echo "[INFO] Adding virtual IPs..." >&2
+# for i in 0 1 2; do
+#   sudo ip addr add $VIRTUAL_IP_START_FRONT.$((VIRTUAL_IP_START_BACK + i))/24 dev $DEVICE || true
+# done
 
 echo "[INFO] Starting server normally..." >&2
 
