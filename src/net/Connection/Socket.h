@@ -16,8 +16,8 @@
 class Socket {
    private:
     const int fd_;
-    std::string ip_;
     uint16_t port_;
+    std::string ip_;
 
    private:
     void setOption(int level, int optname, bool on);

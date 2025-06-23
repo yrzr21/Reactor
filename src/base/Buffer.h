@@ -22,6 +22,7 @@ class Buffer {
    private:
     // header of an uncomplete message
     // current_header_.size = -1 means no complete header yet
+    bool full_ = false;        // 是否已满
     bool has_header_ = false;  // header 是否有效
     Header current_header_;
     // size_t current_header_idx_ = 0;
@@ -30,7 +31,6 @@ class Buffer {
     size_t reader_idx_ = 0;     // next read
     size_t writer_idx_ = 0;     // next write
     // r=w means empty or full, using 'full_' to distinguish
-    bool full_ = false;
 
    private:
     // -- helper functions --
