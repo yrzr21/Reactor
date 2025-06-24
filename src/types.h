@@ -9,6 +9,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <memory_resource>
 #include <mutex>
 #include <queue>
 #include <string>
@@ -45,6 +46,16 @@ using IntVector = std::vector<int>;
 using Seconds = std::chrono::seconds;
 using MutexGuard = std::lock_guard<std::mutex>;
 using PChannelVector = std::vector<Channel *>;
+
+using MemoryResource = std::pmr::memory_resource;
+using PoolOptions = std::pmr::pool_options;
+using MonotonicPool = std::pmr::monotonic_buffer_resource;
+using SynchronizedPool = std::pmr::synchronized_pool_resource;
+using UnsynchronizedPool = std::pmr::unsynchronized_pool_resource;
+using PoolMap = std::map<std::size_t, std::unique_ptr<MemoryResource>>;
+using MsgPoolPtr = std::unique_ptr<AutoReleasePool>;
+
+using MsgQueue = std::queue<std::pmr::string>;
 
 // 回调函数别名
 using MessageHandler = std::function<void(ConnectionPtr, MessagePtr)>;
