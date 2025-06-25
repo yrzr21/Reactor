@@ -84,7 +84,7 @@ int main() {
         MsgQueue msgs = buffer.popMessages();
         while (!msgs.empty()) {
             MsgView m = std::move(msgs.front());
-            msgs.pop();
+            msgs.pop_front();
             std::string s(m.data_, m.size_);
             std::cout << "Got msg: [" << s << "] size=" << m.size_ << "\n";
         }

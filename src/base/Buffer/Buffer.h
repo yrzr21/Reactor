@@ -42,6 +42,7 @@ class Buffer {
     void handleFullIncomplete();
 
    private:
+   public:
     // 仅在 new_pool 中使用
     MemoryResource* upstream_;
     size_t chunk_size_;
@@ -53,9 +54,9 @@ class Buffer {
     size_t next_read_ = 0;
 
     // 已交付给业务层的报文索引的池
-    std::queue<MsgPoolPtr> wait_release_pools_;
+    std::deque<MsgPoolPtr> wait_release_pools_;
     // 空闲
-    std::stack<MsgPoolPtr> idle_pools_;
+    std::vector<MsgPoolPtr> idle_pools_;
     // 没超过阈值的当前报文，可能不完整
 
     MsgPoolPtr pool_;  // 声明顺序得放在上面两个的下面
@@ -92,8 +93,8 @@ inline MsgPoolPtr Buffer::new_pool() {
     }
 
     // 使用 idle 中的返回
-    MsgPoolPtr ret = std::move(idle_pools_.top());
-    idle_pools_.pop();
+    MsgPoolPtr ret = std::move(idle_pools_.back());
+    idle_pools_.pop_back();
 
     ret->init();
     cur_unhandled_ptr_ = ret->base();
@@ -106,8 +107,8 @@ inline void Buffer::recycle_pool() {
     while (!wait_release_pools_.empty()) {
         if (!wait_release_pools_.front()->is_released()) break;
 
-        idle_pools_.push(std::move(wait_release_pools_.front()));
-        wait_release_pools_.pop();
+        idle_pools_.push_back(std::move(wait_release_pools_.front()));
+        wait_release_pools_.pop_front();
     }
 }
 
@@ -126,7 +127,7 @@ inline void Buffer::parseAndPush() {
 
         // 构建完整报文并存储
         char* data = cur_unhandled_ptr_ + sizeof(Header);
-        pending_msgs_.emplace(data, header.size, pool_.get());
+        pending_msgs_.emplace_back(data, header.size, pool_.get());
 
         // 更新
         cur_unhandled_ptr_ = data + header.size;
@@ -154,7 +155,7 @@ inline void Buffer::handleFullIncomplete() {
         next_read_ = pool_->capacity();
 
         old_pool->set_unused();
-        wait_release_pools_.push(std::move(old_pool));
+        wait_release_pools_.push_back(std::move(old_pool));
         return;
     }
 

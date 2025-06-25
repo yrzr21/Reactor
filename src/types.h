@@ -56,7 +56,7 @@ using SynchronizedPool = std::pmr::synchronized_pool_resource;
 using UnsynchronizedPool = std::pmr::unsynchronized_pool_resource;
 using MsgPoolPtr = std::unique_ptr<AutoReleasePool>;
 
-using MsgQueue = std::queue<MsgView>;
+using MsgQueue = std::deque<MsgView>;
 
 // 回调函数别名
 using MessageHandler = std::function<void(ConnectionPtr, MessagePtr)>;
