@@ -8,6 +8,7 @@
 #include "../../types.h"
 
 // 仅允许一次申请？
+// 应被上级RAII管理
 class GlobalPool {
    private:
     std::unique_ptr<char[]> buffer_;
