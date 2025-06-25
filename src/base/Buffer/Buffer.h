@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstring>
 #include <iostream>
 #include <memory_resource>
 #include <stack>
@@ -7,13 +8,14 @@
 #include "../../types.h"
 #include "./AutoReleasePool.h"
 #include "./BufferPool.h"
+#include "./MsgView.h"
 
 struct Header {
     uint32_t size = -1;
 };
 
-using MsgPoolPtr = std::unique_ptr<AutoReleasePool>;
-using MsgQueue = std::queue<std::pmr::string>;
+// 低于这个大小、却越过阈值的报文直接拷贝
+constexpr size_t MAX_COPY = 512;
 
 // 所有报文大小都不大于 MAX_MSG_SIZE，一个缓冲区一定装得下
 class Buffer {
@@ -27,39 +29,40 @@ class Buffer {
     MsgQueue popMessages();
 
    private:
-    bool isCurMessageComplete();
-
     // 查看wait pool，释放的加入到 idle。从 idle 中取或者创建一个返回
     // 一种懒惰的回收 wait pool的方式
     MsgPoolPtr new_pool();
 
-    // 独占 pool
-    void parse_pending_msgs(MsgPoolPtr pool, MsgQueue& container);
     // 回收 wait_release_pools_ 中已经释放的 pool
     void recycle_pool();
 
+    // 解析 pool 中报文，完整的push到队列中
+    void parseAndPush();
+    void handleFullIncomplete();
+
    private:
-    MemoryResource* upstream_;  // 仅在 new_pool 中使用
+    // 仅在 new_pool 中使用
+    MemoryResource* upstream_;
     size_t chunk_size_;
+
     size_t max_msg_size_;  // 申请创建新池的阈值
 
     // 指向当前pool的未处理报文的header
     char* cur_unhandled_ptr_ = nullptr;
-    // 这个header是否有效，因为读取到的header可能不完整
-    bool cur_header_valid_ = false;
+    size_t next_read_ = 0;
+
     // 没超过阈值的当前报文，可能不完整
     MsgPoolPtr pool_;
-    // 超过阈值的、待处理的完整报文
-    std::queue<MsgPoolPtr> pending_pools_;
-    // 已交付给业务层的报文
+
+    // 已交付给业务层的报文索引的池
     std::queue<MsgPoolPtr> wait_release_pools_;
+
     // 空闲
     std::stack<MsgPoolPtr> idle_pools_;
 
     // 尚未处理的、已解析的完整报文
-    // pending_pools_ 似乎就不必要了
     MsgQueue pending_msgs_;
-}
+};
 
 inline Buffer::Buffer(MemoryResource* upstream, size_t chunk_size,
                       size_t max_msg_size)
@@ -67,60 +70,44 @@ inline Buffer::Buffer(MemoryResource* upstream, size_t chunk_size,
       chunk_size_(chunk_size),
       max_msg_size_(max_msg_size),
       pool_(new_pool()) {
+    // std::cout << "buffer construct" << std::endl;
 }
 
-inline Buffer::~Buffer() {
-    assert(pending_pools_.empty());
-    assert(wait_release_pools_.empty());
-}
+inline Buffer::~Buffer() { assert(wait_release_pools_.empty()); }
 
 inline MsgPoolPtr Buffer::new_pool() {
+    std::cout << "new_pool" << std::endl;
     recycle_pool();
 
     if (idle_pools_.empty()) {
         MsgPoolPtr ret =
             std::make_unique<AutoReleasePool>(upstream_, chunk_size_);
-        cur_unhandled_ptr_ = ret.base();
+        cur_unhandled_ptr_ = ret->base();
+        next_read_ = ret->capacity();
         return ret;
     }
 
     // 使用 idle 中的返回
     MsgPoolPtr ret = std::move(idle_pools_.top());
     idle_pools_.pop();
-    cur_unhandled_ptr_ = ret.base();
 
-    ret.reset();
+    ret->init();
+    cur_unhandled_ptr_ = ret->base();
+    next_read_ = ret->capacity();
     return ret;
 }
 
-inline void Buffer::parse_pending_msgs(MsgPoolPtr pool, MsgQueue& container) {
-    char* base = pool->base();
-    char* end = pool->data();
-    while (base != end) {
-        Header header = *reinterpret_cast<Header*>(base);
-        char* data = base + sizeof(Header);
-
-        // 错误报文
-        // 似乎后者不应该是错误，而是不完整就直接截断申请下一个内存池了
-        if (header.size > max_msg_size_ ||
-            end - base < sizeof(Header) + header.size) {
-            throw std::bad_exception("wrong msg received");
-        }
-
-        // data size upstream
-        std::pmr::string msg(data, header.size, pool.get());
-
-        container.push(std::move(msg));
-        pool->add_ref();
-
-        base += (sizeof(Header) + header.size);
-    }
-
-    wait_release_pools_.push(std::move(pool));
-}
-
 inline void Buffer::recycle_pool() {
+    std::cout << "recycle" << std::endl;
     while (!wait_release_pools_.empty()) {
+        auto& front = wait_release_pools_.front();
+        if (!front) {
+            std::cerr << "[BUG] Detected nullptr in wait_release_pools_\n";
+            wait_release_pools_.pop();  // 清掉这个脏数据，防止死循环
+            continue;
+        }
+        if (!front->is_released()) break;
+
         if (!wait_release_pools_.front()->is_released()) break;
 
         idle_pools_.push(std::move(wait_release_pools_.front()));
@@ -128,10 +115,65 @@ inline void Buffer::recycle_pool() {
     }
 }
 
+inline void Buffer::parseAndPush() {
+    char* end = pool_->data();
+
+    while (cur_unhandled_ptr_ != end) {
+        size_t total = static_cast<size_t>(end - cur_unhandled_ptr_);
+        if (total < sizeof(Header)) return;  // 头不完整
+
+        Header header = *reinterpret_cast<Header*>(cur_unhandled_ptr_);
+        if (header.size > max_msg_size_)  // error
+            throw std::bad_exception();
+
+        if (total < sizeof(Header) + header.size) return;  // 头完整报文不完整
+
+        // 构建完整报文并存储
+        char* data = cur_unhandled_ptr_ + sizeof(Header);
+        MsgView mv(data, header.size, pool_.get());
+        pending_msgs_.push(std::move(mv));
+
+        // 更新
+        cur_unhandled_ptr_ = data + header.size;
+    }
+}
+
+inline void Buffer::handleFullIncomplete() {
+    char* end = pool_->data();
+    size_t unhandled = static_cast<size_t>(end - cur_unhandled_ptr_);
+
+    // debug 用，检查此处的报文是否是不完整的
+    if (unhandled > sizeof(Header)) {
+        Header header = *reinterpret_cast<Header*>(cur_unhandled_ptr_);
+        assert(header.size + sizeof(Header) > unhandled);
+    }
+
+    // 报文够小，直接拷贝到新池子
+    if (unhandled <= MAX_COPY) {
+        MsgPoolPtr old_pool = std::move(pool_);
+        char* old_unhandled_ptr_ = cur_unhandled_ptr_;
+        pool_ = new_pool();
+
+        std::memcpy(pool_->data(), old_unhandled_ptr_, unhandled);
+        pool_->consume(unhandled);
+        next_read_ = pool_->capacity();
+
+        wait_release_pools_.push(std::move(old_pool));
+        return;
+    }
+
+    // 报文不完整，下一次系统调用读完整的报文，然后换池子
+    Header header = *reinterpret_cast<Header*>(cur_unhandled_ptr_);
+    size_t msg_size = sizeof(Header) + header.size;
+    assert(unhandled < msg_size);
+
+    next_read_ = msg_size - unhandled;
+}
+
 inline size_t Buffer::fillFromFd(int fd) {
     size_t nread = 0;
     while (true) {
-        size_t n = ::read(fd, pool_->data(), pool_->capacity());
+        size_t n = ::read(fd, pool_->data(), next_read_);
         if (n <= 0) {
             // 被中断
             if (n < 0 && errno == EINTR) continue;
@@ -143,9 +185,13 @@ inline size_t Buffer::fillFromFd(int fd) {
         pool_->consume(n);
         nread += n;
 
+        parseAndPush();
+        // 现在 cur_unhandled_ptr_ 要么指向不完整的报文，要么无报文
+
         if (pool_->capacity() < max_msg_size_) {
-            pending_pools_.push(std::move(pool_));
-            pool_ = new_pool();
+            handleFullIncomplete();
+        } else {
+            next_read_ = pool_->capacity();
         }
     }
 
@@ -154,46 +200,6 @@ inline size_t Buffer::fillFromFd(int fd) {
 
 MsgQueue Buffer::popMessages() {
     MsgQueue ret;
-
-    // 回收 pending 池中的报文
-    while (!pending_pools_.empty()) {
-        MsgPoolPtr cur_pool = std::move(pending_pools_.front());
-        pending_pools_.pop();
-
-        parse_pending_msgs(std::move(cur_pool), ret);
-    }
-
-    // 单独处理当前 pool，可能会遇到不完整报文
-    char* base = cur_unhandled_ptr_;
-    char* end = pool_->data();
-    while (base != end) {
-        Header header = *reinterpret_cast<Header*>(base);
-        char* data = base + sizeof(Header);
-
-        // 不完整报文，大小不足header和大于header的均用此判断
-        if (end - base < sizeof(Header) + header.size) {
-            break;
-        }
-
-        if (header.size > max_msg_size_)
-            throw std::bad_exception("wrong msg received");
-
-        // data size upstream
-        std::pmr::string msg(data, header.size, pool_.get());
-
-        ret.push(std::move(msg));
-        pool_->add_ref();
-
-        base += (sizeof(Header) + header.size);
-    }
-
-    cur_pool_unhandled_idx_ = base;
-    // 无需判断是否需将当前 pool 回收，因其剩余容量肯定大于 max msg
-
+    ret.swap(pending_msgs_);
     return ret;
-}
-
-inline bool Buffer::isCurMessageComplete() {
-    return false;
-    //
 }

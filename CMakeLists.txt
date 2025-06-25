@@ -46,8 +46,8 @@ add_executable(test_max_concurrent_client
     ${CMAKE_CURRENT_SOURCE_DIR}/test/clients/test_max_concurrent_client.cpp
 )
 
-add_executable(test_buffer_pool
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/test_buffer_pool.cpp
+add_executable(test_buffer
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/test_buffer.cpp
 )
 
 

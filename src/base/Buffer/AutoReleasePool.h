@@ -20,7 +20,7 @@ class AutoReleasePool : public MemoryResource {
     char* base();
     char* data();  // 下次写入的位置
     // buffer 确保消费的内存不会超过持有的内存
-    void consume();
+    void consume(size_t bytes);
     size_t capacity();
     bool is_released();
 
@@ -28,7 +28,7 @@ class AutoReleasePool : public MemoryResource {
 
     // 若为 nullptr 和 0，则继续使用原有 upstream
     // 调用者应确保已经 release
-    void reset(MemoryResource* upstream = nullptr, size_t chunk_size = 0);
+    void init(MemoryResource* upstream = nullptr, size_t chunk_size = 0);
 
    private:
     // 重写的 MemoryResource 接口
@@ -37,6 +37,7 @@ class AutoReleasePool : public MemoryResource {
     void* do_allocate(size_t bytes, size_t alignment) override;
     // 递减引用计数，为0时释放内存给上游
     void do_deallocate(void* p, size_t bytes, size_t alignment) override;
+    bool do_is_equal(const memory_resource& __other) const noexcept override;
 
    private:
     // 此类中非原子类型，仅允许在处理连接的事件循环修改
@@ -50,12 +51,10 @@ class AutoReleasePool : public MemoryResource {
 
 inline AutoReleasePool::AutoReleasePool(MemoryResource* upstream,
                                         size_t chunk_size) {
-    reset(upstream, chunk_size);
+    init(upstream, chunk_size);
 }
 
-inline AutoReleasePool::~AutoReleasePool() {
-    assert(is_released(), "AutoReleasePool: desturcting while not released\n");
-}
+inline AutoReleasePool::~AutoReleasePool() { assert(is_released()); }
 inline char* AutoReleasePool::base() { return base_; }
 inline char* AutoReleasePool::data() { return cur_; }
 
@@ -67,19 +66,18 @@ inline void AutoReleasePool::add_ref() {
 }
 
 inline size_t AutoReleasePool::capacity() {
-    return total_size_ - static_cast<size_t>(cur - base_);
+    return total_size_ - static_cast<size_t>(cur_ - base_);
 }
 
 inline bool AutoReleasePool::is_released() { return base_ == nullptr; }
 
-inline void AutoReleasePool::reset(MemoryResource* upstream,
-                                   size_t chunk_size) {
-    assert(is_released(), "AutoReleasePool: invalid reset\n");
+inline void AutoReleasePool::init(MemoryResource* upstream, size_t chunk_size) {
+    assert(is_released());
 
     if (upstream) upstream_ = upstream;
-    if (chunk_size) chunk_size_ = chunk_size;
+    if (chunk_size) total_size_ = chunk_size;
     assert(upstream_);
-    assert(chunk_size_);
+    assert(total_size_);
 
     base_ = static_cast<char*>(upstream->allocate(chunk_size));
     total_size_ = chunk_size;
@@ -88,7 +86,7 @@ inline void AutoReleasePool::reset(MemoryResource* upstream,
 }
 
 void* AutoReleasePool::do_allocate(size_t bytes, size_t alignment) {
-    throw std::bad_alloc("Buffer: allocate refused\n");
+    throw std::bad_alloc();
 }
 
 inline void AutoReleasePool::do_deallocate(void* p, size_t bytes,
@@ -102,4 +100,9 @@ inline void AutoReleasePool::do_deallocate(void* p, size_t bytes,
         upstream_->deallocate(base_, total_size_);
         base_ = nullptr;
     }
+}
+
+inline bool AutoReleasePool::do_is_equal(
+    const memory_resource& __other) const noexcept {
+    return this == &__other;
 }

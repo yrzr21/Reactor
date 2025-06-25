@@ -15,8 +15,8 @@ class GlobalPool {
     SynchronizedPool s_pool_;  // 包装 MonotonicPool
 
    public:
-    // PoolOptions{1, 0} 表示 SynchronizedPool 任何资源请求都直接丢给 MonotonicPool
-    // 且 SynchronizedPool 维护了线程安全
+    // PoolOptions{1, 0} 表示 SynchronizedPool 任何资源请求都直接丢给
+    // MonotonicPool 且 SynchronizedPool 维护了线程安全
     GlobalPool(double size_gb)
         : buffer_(std::make_unique<char[]>(size_gb * 1024 * 1024 * 1024)),
           pool_(buffer_.get(), size_gb * 1024 * 1024 * 1024),

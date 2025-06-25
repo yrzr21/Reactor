@@ -21,6 +21,8 @@ class Channel;
 class Connection;
 class Epoll;
 class Socket;
+class AutoReleasePool;
+class MsgView;
 
 // 指针
 using SocketPtr = std::unique_ptr<Socket>;
@@ -55,7 +57,7 @@ using UnsynchronizedPool = std::pmr::unsynchronized_pool_resource;
 using PoolMap = std::map<std::size_t, std::unique_ptr<MemoryResource>>;
 using MsgPoolPtr = std::unique_ptr<AutoReleasePool>;
 
-using MsgQueue = std::queue<std::pmr::string>;
+using MsgQueue = std::queue<MsgView>;
 
 // 回调函数别名
 using MessageHandler = std::function<void(ConnectionPtr, MessagePtr)>;
