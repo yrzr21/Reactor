@@ -19,22 +19,17 @@ struct Header {
 constexpr size_t MAX_COPY = 512;
 
 // 所有报文大小都不大于 MAX_MSG_SIZE，一个缓冲区一定装得下
-class Buffer {
+// 应被上级RAII管理
+class RecvBuffer {
    public:
-    Buffer(MemoryResource* upstream, size_t chunk_size, size_t max_msg_size);
-    ~Buffer();
+    RecvBuffer(MemoryResource* upstream, size_t chunk_size,
+               size_t max_msg_size);
+    ~RecvBuffer();
 
     size_t fillFromFd(int fd);
 
     // 把所有消息给业务层
     MsgVec popMessages();
-
-    // 上面俩和下面俩只能用一种
-
-    // 把业务层传来的消息附加上报文头加到 pending_msgs_
-    void pushMessage(MessagePtr&& msg_ptr);
-    // 把 pending_msgs_ 中的全部发给 fd
-    void sendAllToFd();
 
    private:
     // 查看wait pool，释放的加入到 idle。从 idle 中取或者创建一个返回
@@ -49,7 +44,6 @@ class Buffer {
     void handleFullIncomplete();
 
    private:
-   public:
     // 仅在 new_pool 中使用
     MemoryResource* upstream_;
     size_t chunk_size_;
@@ -71,8 +65,8 @@ class Buffer {
     MsgVec pending_msgs_;
 };
 
-inline Buffer::Buffer(MemoryResource* upstream, size_t chunk_size,
-                      size_t max_msg_size)
+inline RecvBuffer::RecvBuffer(MemoryResource* upstream, size_t chunk_size,
+                              size_t max_msg_size)
     : upstream_(upstream),
       chunk_size_(chunk_size),
       max_msg_size_(max_msg_size),
@@ -80,14 +74,14 @@ inline Buffer::Buffer(MemoryResource* upstream, size_t chunk_size,
     // std::cout << "buffer construct" << std::endl;
 }
 
-inline Buffer::~Buffer() {
+inline RecvBuffer::~RecvBuffer() {
     assert(wait_release_pools_.empty());
     assert(pending_msgs_.empty());
     assert(pool_->refCnt() == 0);
     pool_->release();
 }
 
-inline MsgPoolPtr Buffer::new_pool() {
+inline MsgPoolPtr RecvBuffer::new_pool() {
     std::cout << "new_pool" << std::endl;
     recycle_pool();
 
@@ -109,7 +103,7 @@ inline MsgPoolPtr Buffer::new_pool() {
     return ret;
 }
 
-inline void Buffer::recycle_pool() {
+inline void RecvBuffer::recycle_pool() {
     std::cout << "recycle" << std::endl;
     while (!wait_release_pools_.empty()) {
         if (!wait_release_pools_.front()->is_released()) break;
@@ -119,7 +113,7 @@ inline void Buffer::recycle_pool() {
     }
 }
 
-inline void Buffer::parseAndPush() {
+inline void RecvBuffer::parseAndPush() {
     char* end = pool_->data();
 
     while (cur_unhandled_ptr_ != end) {
@@ -141,7 +135,7 @@ inline void Buffer::parseAndPush() {
     }
 }
 
-inline void Buffer::handleFullIncomplete() {
+inline void RecvBuffer::handleFullIncomplete() {
     char* end = pool_->data();
     size_t unhandled = static_cast<size_t>(end - cur_unhandled_ptr_);
 
@@ -174,7 +168,7 @@ inline void Buffer::handleFullIncomplete() {
     next_read_ = msg_size - unhandled;
 }
 
-inline size_t Buffer::fillFromFd(int fd) {
+inline size_t RecvBuffer::fillFromFd(int fd) {
     size_t nread = 0;
     while (true) {
         int n = ::read(fd, pool_->data(), next_read_);
@@ -202,7 +196,7 @@ inline size_t Buffer::fillFromFd(int fd) {
     return nread;
 }
 
-MsgVec Buffer::popMessages() {
+MsgVec RecvBuffer::popMessages() {
     MsgVec ret;
     ret.swap(pending_msgs_);
     return ret;

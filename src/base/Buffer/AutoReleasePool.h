@@ -7,10 +7,10 @@
 #include "../../types.h"
 #include "./BufferPool.h"
 
-// 专供 Connection 的 Buffer 使用的内存池
 // 下游仅使用本池的do_deallocate，用于减少引用，并返还内存
 // 上游应尽快归还内存，以减少"碎片"
-// 可重用，
+
+// 应被上级RAII管理
 class AutoReleasePool : public MemoryResource {
    public:
     AutoReleasePool(MemoryResource* upstream, size_t chunk_size);
@@ -73,7 +73,10 @@ inline void AutoReleasePool::add_ref() {
 
 inline size_t AutoReleasePool::refCnt() { return ref_cnt; }
 
-inline void AutoReleasePool::set_unused() { is_using.store(false); }
+inline void AutoReleasePool::set_unused() {
+    is_using.store(false);
+    if (ref_cnt == 0) release();
+}
 
 inline size_t AutoReleasePool::capacity() {
     return total_size_ - static_cast<size_t>(cur_ - base_);
@@ -82,6 +85,7 @@ inline size_t AutoReleasePool::capacity() {
 inline bool AutoReleasePool::is_released() { return base_ == nullptr; }
 
 inline void AutoReleasePool::release() {
+    is_using.store(false);
     upstream_->deallocate(base_, total_size_);
     base_ = nullptr;
 }

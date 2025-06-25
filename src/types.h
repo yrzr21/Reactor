@@ -2,6 +2,7 @@
 #define TYPES
 
 #include <sys/epoll.h>
+#include <sys/uio.h>
 
 #include <atomic>
 #include <chrono>
@@ -59,8 +60,11 @@ using MsgPoolPtr = std::unique_ptr<AutoReleasePool>;
 
 // MsgView本身就是一个指针，所以存自身就行
 using MsgVec = std::vector<MsgView>;
+using MsgDeq = std::deque<MsgView>;
 // 而 header 是实体，需要存指针
 using HeaderVec = std::vector<Header *>;
+using HeaderDeq = std::deque<Header *>;
+using IoVecs = std::vector<iovec>;
 
 // 回调函数别名
 using MessageHandler = std::function<void(ConnectionPtr, MessagePtr)>;

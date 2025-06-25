@@ -39,15 +39,27 @@ list(REMOVE_ITEM SOURCES ${SRC_DIR}/main.cpp)
 add_executable(test1 ${SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/test1.cpp)
 
 add_executable(test_send_client
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/clients/test_send_client.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/clients/test_send_client.cpp ${SOURCES}
 )
 
 add_executable(test_max_concurrent_client
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/clients/test_max_concurrent_client.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/clients/test_max_concurrent_client.cpp ${SOURCES}
 )
 
-add_executable(test_buffer
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/test_buffer.cpp
+add_executable(test_auto_release_pool
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_auto_release_pool.cpp ${SOURCES}
+)
+
+add_executable(test_buffer_pool
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_buffer_pool.cpp ${SOURCES}
+)
+
+add_executable(test_msg_view
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_msg_view.cpp ${SOURCES}
+)
+
+add_executable(test_recv_send_buffer
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_recv_send_buffer.cpp ${SOURCES}
 )
 
 

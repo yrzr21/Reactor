@@ -2,10 +2,10 @@
 
 #include "./AutoReleasePool.h"
 
-struct MsgView {
+class MsgView {
+   public:
     const char* data_;
     size_t size_;
-    AutoReleasePool* upstream_;
 
     MsgView(const char* data, size_t size, AutoReleasePool* upstream);
     ~MsgView();
@@ -15,6 +15,11 @@ struct MsgView {
 
     MsgView(MsgView&& other) noexcept;
     MsgView& operator=(MsgView&& other) noexcept;
+
+    void release();
+
+   private:
+    AutoReleasePool* upstream_;
 };
 
 inline MsgView::MsgView(const char* data, size_t size,
@@ -23,9 +28,7 @@ inline MsgView::MsgView(const char* data, size_t size,
     if (upstream_) upstream_->add_ref();
 }
 
-inline MsgView::~MsgView() {
-    if (upstream_) upstream_->deallocate(nullptr, 0, 0);
-}
+inline MsgView::~MsgView() { release(); }
 
 inline MsgView::MsgView(const MsgView& other)
     : data_(other.data_), size_(other.size_), upstream_(other.upstream_) {
@@ -34,7 +37,7 @@ inline MsgView::MsgView(const MsgView& other)
 inline MsgView& MsgView::operator=(const MsgView& other) {
     if (this != &other) {
         // 释放旧的
-        if (upstream_) upstream_->deallocate(nullptr, 0, 0);
+        if (upstream_) release();
 
         data_ = other.data_;
         size_ = other.size_;
@@ -53,13 +56,21 @@ inline MsgView::MsgView(MsgView&& other) noexcept
 inline MsgView& MsgView::operator=(MsgView&& other) noexcept {
     if (this != &other) {
         // 释放旧的
-        if (upstream_) upstream_->deallocate(nullptr, 0, 0);
+        if (upstream_) release();
 
         data_ = other.data_;
         size_ = other.size_;
         upstream_ = other.upstream_;
-        other.upstream_ = nullptr;
-        other.data_ = nullptr;
+        upstream_->add_ref();
+        other.release();
     }
     return *this;
+}
+
+inline void MsgView::release() {
+    if (upstream_) {
+        upstream_->deallocate(nullptr, 0, 0);
+        upstream_ = nullptr;
+        data_ = nullptr;
+    }
 }
