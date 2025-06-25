@@ -12,9 +12,22 @@ struct MsgView {
         if (upstream_) upstream_->deallocate(nullptr, 0, 0);
     }
 
-    // 禁用拷贝
-    MsgView(const MsgView&) = delete;
-    MsgView& operator=(const MsgView&) = delete;
+    MsgView(const MsgView& other)
+        : data_(other.data_), size_(other.size_), upstream_(other.upstream_) {
+        upstream_->add_ref();
+    }
+    MsgView& operator=(const MsgView& other) {
+        if (this != &other) {
+            // 释放旧的
+            if (upstream_) upstream_->deallocate(nullptr, 0, 0);
+
+            data_ = other.data_;
+            size_ = other.size_;
+            upstream_ = other.upstream_;
+            upstream_->add_ref();
+        }
+        return *this;
+    }
 
     MsgView(MsgView&& other) noexcept
         : data_(other.data_), size_(other.size_), upstream_(other.upstream_) {
