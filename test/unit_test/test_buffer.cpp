@@ -81,10 +81,10 @@ int main() {
     for (int i = 0; i < 10; ++i) {
         buffer.fillFromFd(rfd);
 
-        MsgQueue msgs = buffer.popMessages();
+        MsgVec msgs = buffer.popMessages();
         while (!msgs.empty()) {
-            MsgView m = std::move(msgs.front());
-            msgs.pop_front();
+            MsgView m = std::move(msgs.back());
+            msgs.pop_back();
             std::string s(m.data_, m.size_);
             std::cout << "Got msg: [" << s << "] size=" << m.size_ << "\n";
         }

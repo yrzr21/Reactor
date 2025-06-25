@@ -27,7 +27,14 @@ class Buffer {
     size_t fillFromFd(int fd);
 
     // 把所有消息给业务层
-    MsgQueue popMessages();
+    MsgVec popMessages();
+
+    // 上面俩和下面俩只能用一种
+
+    // 把业务层传来的消息附加上报文头加到 pending_msgs_
+    void pushMessage(MessagePtr&& msg_ptr);
+    // 把 pending_msgs_ 中的全部发给 fd
+    void sendAllToFd();
 
    private:
     // 查看wait pool，释放的加入到 idle。从 idle 中取或者创建一个返回
@@ -61,7 +68,7 @@ class Buffer {
 
     MsgPoolPtr pool_;  // 声明顺序得放在上面两个的下面
     // 尚未处理的、已解析的完整报文
-    MsgQueue pending_msgs_;
+    MsgVec pending_msgs_;
 };
 
 inline Buffer::Buffer(MemoryResource* upstream, size_t chunk_size,
@@ -195,8 +202,8 @@ inline size_t Buffer::fillFromFd(int fd) {
     return nread;
 }
 
-MsgQueue Buffer::popMessages() {
-    MsgQueue ret;
+MsgVec Buffer::popMessages() {
+    MsgVec ret;
     ret.swap(pending_msgs_);
     return ret;
 }

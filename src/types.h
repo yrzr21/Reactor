@@ -23,6 +23,7 @@ class Epoll;
 class Socket;
 class AutoReleasePool;
 class MsgView;
+class Header;
 
 // 指针
 using SocketPtr = std::unique_ptr<Socket>;
@@ -56,7 +57,10 @@ using SynchronizedPool = std::pmr::synchronized_pool_resource;
 using UnsynchronizedPool = std::pmr::unsynchronized_pool_resource;
 using MsgPoolPtr = std::unique_ptr<AutoReleasePool>;
 
-using MsgQueue = std::deque<MsgView>;
+// MsgView本身就是一个指针，所以存自身就行
+using MsgVec = std::vector<MsgView>;
+// 而 header 是实体，需要存指针
+using HeaderVec = std::vector<Header *>;
 
 // 回调函数别名
 using MessageHandler = std::function<void(ConnectionPtr, MessagePtr)>;
