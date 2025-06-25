@@ -14,7 +14,7 @@
 class AutoReleasePool : public MemoryResource {
    public:
     AutoReleasePool(MemoryResource* upstream, size_t chunk_size);
-    ~AutoReleasePool();
+    ~AutoReleasePool();  // 应被 RAII 管理，类似于 malloc
 
     // buffer 使用如下公开接口修改内存池
     char* base();
@@ -23,8 +23,11 @@ class AutoReleasePool : public MemoryResource {
     void consume(size_t bytes);
     size_t capacity();
     bool is_released();
+    void release();
 
     void add_ref();
+    size_t refCnt();
+    void set_unused();
 
     // 若为 nullptr 和 0，则继续使用原有 upstream
     // 调用者应确保已经 release
@@ -42,6 +45,8 @@ class AutoReleasePool : public MemoryResource {
    private:
     // 此类中非原子类型，仅允许在处理连接的事件循环修改
     std::atomic<size_t> ref_cnt = 0;
+    // 即便 ref_cnt=0， 若 is_using，也不应释放
+    std::atomic_bool is_using = true;
 
     MemoryResource* upstream_ = nullptr;
     char* base_ = nullptr;
@@ -63,13 +68,23 @@ inline void AutoReleasePool::consume(size_t bytes) { cur_ += bytes; }
 inline void AutoReleasePool::add_ref() {
     // 仅要求原子序
     ref_cnt.fetch_add(1, std::memory_order_relaxed);
+    std::cout << "refcnt=" << ref_cnt << std::endl;
 }
+
+inline size_t AutoReleasePool::refCnt() { return ref_cnt; }
+
+inline void AutoReleasePool::set_unused() { is_using.store(false); }
 
 inline size_t AutoReleasePool::capacity() {
     return total_size_ - static_cast<size_t>(cur_ - base_);
 }
 
 inline bool AutoReleasePool::is_released() { return base_ == nullptr; }
+
+inline void AutoReleasePool::release() {
+    upstream_->deallocate(base_, total_size_);
+    base_ = nullptr;
+}
 
 inline void AutoReleasePool::init(MemoryResource* upstream, size_t chunk_size) {
     assert(is_released());
@@ -80,9 +95,9 @@ inline void AutoReleasePool::init(MemoryResource* upstream, size_t chunk_size) {
     assert(total_size_);
 
     base_ = static_cast<char*>(upstream->allocate(chunk_size));
-    total_size_ = chunk_size;
     cur_ = base_;
     ref_cnt.store(0);
+    is_using.store(true);
 }
 
 void* AutoReleasePool::do_allocate(size_t bytes, size_t alignment) {
@@ -93,12 +108,12 @@ inline void AutoReleasePool::do_deallocate(void* p, size_t bytes,
                                            size_t alignment) {
     // 仅要求原子序
     size_t old_cnt = ref_cnt.fetch_sub(1, std::memory_order_relaxed);
-    assert(old_cnt != 0);
+    std::cout << "refcnt=" << ref_cnt << std::endl;
+    assert(old_cnt != 0 || is_using);
 
-    if (old_cnt == 1) {
+    if (old_cnt == 1 && !is_using) {
         // 释放内存给上游
-        upstream_->deallocate(base_, total_size_);
-        base_ = nullptr;
+        release();
     }
 }
 

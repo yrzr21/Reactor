@@ -1,68 +1,52 @@
+#include "../../src/base/Buffer/Buffer.h"
+#include "../../src/base/Buffer/GlobalPool.h"
+#include "../../src/base/Buffer/BufferPool.h"
 #include <unistd.h>
-
-#include <cassert>
+#include <fcntl.h>
 #include <cstring>
 #include <iostream>
-#include <vector>
-
-#include "../../src/base/Buffer/Buffer.h"
-#include "../../src/base/Buffer/BufferPool.h"
-#include "../../src/base/Buffer/GlobalPool.h"
-#include "../../src/base/Buffer/MsgView.h"
-
-constexpr size_t MAX_MSG_SIZE = 1024;
-
-void write_fake_messages(int write_fd) {
-    struct Header {
-        uint32_t size;
-    };
-
-    std::vector<std::string> messages = {"Hello, World!", "Test message 2",
-                                         "Third one is here"};
-
-    for (const auto& msg : messages) {
-        Header header{static_cast<uint32_t>(msg.size())};
-        ::write(write_fd, &header, sizeof(Header));
-        ::write(write_fd, msg.data(), msg.size());
-    }
-}
 
 int main() {
-    // pipe 模拟 fd 输入
+    // 设置 pipe，读端非阻塞
     int fds[2];
-    if (pipe(fds) != 0) {
+    if (pipe(fds) == -1) {
         perror("pipe");
         return 1;
     }
+    int flags = fcntl(fds[0], F_GETFL, 0);
+    fcntl(fds[0], F_SETFL, flags | O_NONBLOCK);
 
-    int read_fd = fds[0];
-    int write_fd = fds[1];
+    // 构造 pool 与 buffer
+    GlobalPool global(0.1);  // 0.1 GB
+    BufferPool buf_pool(global.get_resource(), 1);  // 每 chunk 1 个 block
+    Buffer buffer(buf_pool.get_resource(), 4096, 1024);
 
-    // Step 1: 构造内存池
-    GlobalPool global_pool(0.01);  // 10MB 全局内存
-    BufferPool buffer_pool(global_pool.get_resource(), 4);
+    // 构造一个完整的报文：4B 头 + N B 数据
+    const char* msg = "Hello, Reactor!";
+    uint32_t len = strlen(msg);
+    char data[1024] = {0};
+    std::memcpy(data, &len, sizeof(uint32_t));  // 4 字节长度头
+    std::memcpy(data + sizeof(uint32_t), msg, len);
 
-    // Step 2: 构造 Buffer（负责管理报文读取）
-    Buffer buffer(buffer_pool.get_resource(), CHUNK_SIZE, MAX_MSG_SIZE);
+    // 写入 pipe
+    write(fds[1], data, sizeof(uint32_t) + len);
 
-    // Step 3: 写入模拟报文数据
-    write_fake_messages(write_fd);
-    close(write_fd);  // 模拟对端关闭连接
+    // 调用 fillFromFd
+    buffer.fillFromFd(fds[0]);
 
-    // Step 4: 从 fd 填充并解析报文
-    ssize_t ret = buffer.fillFromFd(read_fd);
-    assert(ret > 0);
-
-    // Step 5: 取出所有解析好的消息并打印
-    auto queue = buffer.popMessages();
-    int idx = 1;
-    while (!queue.empty()) {
-        const auto& msg = queue.front();
-        std::cout << "Msg #" << idx++ << ": ";
-        std::cout.write(msg.data_, msg.size_);
-        std::cout << std::endl;
-        queue.pop();
+    // 拿出并消费消息，确保析构前引用清零
+    {
+        MsgQueue msgs = buffer.popMessages();
+        while (!msgs.empty()) {
+            MsgView m = std::move(msgs.front());
+            msgs.pop();
+            std::string s(m.data_, m.size_);
+            std::cout << "Got msg: " << s << std::endl;
+        }
     }
 
+    // 析构 buffer 会自动检查 refCnt、清理 pool
+    close(fds[0]);
+    close(fds[1]);
     return 0;
 }

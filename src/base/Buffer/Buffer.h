@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstring>
 #include <iostream>
 #include <memory_resource>
@@ -51,15 +52,13 @@ class Buffer {
     char* cur_unhandled_ptr_ = nullptr;
     size_t next_read_ = 0;
 
-    // 没超过阈值的当前报文，可能不完整
-    MsgPoolPtr pool_;
-
     // 已交付给业务层的报文索引的池
     std::queue<MsgPoolPtr> wait_release_pools_;
-
     // 空闲
     std::stack<MsgPoolPtr> idle_pools_;
+    // 没超过阈值的当前报文，可能不完整
 
+    MsgPoolPtr pool_;  // 声明顺序得放在上面两个的下面
     // 尚未处理的、已解析的完整报文
     MsgQueue pending_msgs_;
 };
@@ -73,7 +72,12 @@ inline Buffer::Buffer(MemoryResource* upstream, size_t chunk_size,
     // std::cout << "buffer construct" << std::endl;
 }
 
-inline Buffer::~Buffer() { assert(wait_release_pools_.empty()); }
+inline Buffer::~Buffer() {
+    assert(wait_release_pools_.empty());
+    assert(pending_msgs_.empty());
+    assert(pool_->refCnt() == 0);
+    pool_->release();
+}
 
 inline MsgPoolPtr Buffer::new_pool() {
     std::cout << "new_pool" << std::endl;
@@ -100,14 +104,6 @@ inline MsgPoolPtr Buffer::new_pool() {
 inline void Buffer::recycle_pool() {
     std::cout << "recycle" << std::endl;
     while (!wait_release_pools_.empty()) {
-        auto& front = wait_release_pools_.front();
-        if (!front) {
-            std::cerr << "[BUG] Detected nullptr in wait_release_pools_\n";
-            wait_release_pools_.pop();  // 清掉这个脏数据，防止死循环
-            continue;
-        }
-        if (!front->is_released()) break;
-
         if (!wait_release_pools_.front()->is_released()) break;
 
         idle_pools_.push(std::move(wait_release_pools_.front()));
@@ -130,8 +126,7 @@ inline void Buffer::parseAndPush() {
 
         // 构建完整报文并存储
         char* data = cur_unhandled_ptr_ + sizeof(Header);
-        MsgView mv(data, header.size, pool_.get());
-        pending_msgs_.push(std::move(mv));
+        pending_msgs_.emplace(data, header.size, pool_.get());
 
         // 更新
         cur_unhandled_ptr_ = data + header.size;
@@ -158,6 +153,7 @@ inline void Buffer::handleFullIncomplete() {
         pool_->consume(unhandled);
         next_read_ = pool_->capacity();
 
+        old_pool->set_unused();
         wait_release_pools_.push(std::move(old_pool));
         return;
     }
@@ -173,7 +169,7 @@ inline void Buffer::handleFullIncomplete() {
 inline size_t Buffer::fillFromFd(int fd) {
     size_t nread = 0;
     while (true) {
-        size_t n = ::read(fd, pool_->data(), next_read_);
+        int n = ::read(fd, pool_->data(), next_read_);
         if (n <= 0) {
             // 被中断
             if (n < 0 && errno == EINTR) continue;

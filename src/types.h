@@ -54,7 +54,6 @@ using PoolOptions = std::pmr::pool_options;
 using MonotonicPool = std::pmr::monotonic_buffer_resource;
 using SynchronizedPool = std::pmr::synchronized_pool_resource;
 using UnsynchronizedPool = std::pmr::unsynchronized_pool_resource;
-using PoolMap = std::map<std::size_t, std::unique_ptr<MemoryResource>>;
 using MsgPoolPtr = std::unique_ptr<AutoReleasePool>;
 
 using MsgQueue = std::queue<MsgView>;
