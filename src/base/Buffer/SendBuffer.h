@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arpa/inet.h>
 #include <sys/uio.h>
 
 #include <deque>
@@ -53,7 +54,7 @@ inline void SendBuffer::pushMsg(MsgVec&& msgs) {
         pending_msgs_.push_back(std::move(msg));
 
         Header* header = new_header();
-        header->size = pending_msgs_.back().size_;
+        header->size = htonl(pending_msgs_.back().size_);
         pending_headers_.push_back(header);
     }
 }

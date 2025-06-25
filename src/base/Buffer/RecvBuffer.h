@@ -1,5 +1,7 @@
 #pragma once
 
+#include <arpa/inet.h>
+
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -121,6 +123,7 @@ inline void RecvBuffer::parseAndPush() {
         if (total < sizeof(Header)) return;  // 头不完整
 
         Header header = *reinterpret_cast<Header*>(cur_unhandled_ptr_);
+        header.size = ntohl(header.size);
         if (header.size > max_msg_size_)  // error
             throw std::bad_exception();
 
