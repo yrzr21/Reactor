@@ -107,7 +107,7 @@ inline void SmartMonoPool::init(MemoryResource* upstream, size_t chunk_size) {
     assert(upstream_);
     assert(total_size_);
 
-    base_ = static_cast<char*>(upstream->allocate(chunk_size));
+    base_ = static_cast<char*>(upstream_->allocate(total_size_));
     cur_ = base_;
     ref_cnt.store(0);
     is_using.store(true);
