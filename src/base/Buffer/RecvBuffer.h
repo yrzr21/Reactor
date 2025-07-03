@@ -9,9 +9,10 @@
 #include <stack>
 
 #include "../../types.h"
-#include "./AutoReleasePool.h"
 #include "./BufferPool.h"
+#include "./MonoRecyclePool.h"
 #include "./MsgView.h"
+#include "./SmartMonoPool.h"
 
 struct Header {
     uint32_t size = -1;
@@ -34,89 +35,33 @@ class RecvBuffer {
     MsgVec popMessages();
 
    private:
-    // 查看wait pool，释放的加入到 idle。从 idle 中取或者创建一个返回
-    // 一种懒惰的回收 wait pool的方式
-    MsgPoolPtr new_pool();
-
-    // 回收 wait_release_pools_ 中已经释放的 pool
-    void recycle_pool();
-
-    // 解析 pool 中报文，完整的push到队列中
     void parseAndPush();
     void handleFullIncomplete();
 
    private:
-    // 仅在 new_pool 中使用
-    MemoryResource* upstream_;
-    size_t chunk_size_;
-
     size_t max_msg_size_;  // 申请创建新池的阈值
 
     // 指向当前pool的未处理报文的header
     char* cur_unhandled_ptr_ = nullptr;
     size_t next_read_ = 0;
 
-    // 已交付给业务层的报文索引的池
-    std::deque<MsgPoolPtr> wait_release_pools_;
-    // 空闲
-    std::vector<MsgPoolPtr> idle_pools_;
-    // 没超过阈值的当前报文，可能不完整
-
-    MsgPoolPtr pool_;  // 声明顺序得放在上面两个的下面
+    MonoRecyclePool pool_;
     // 尚未处理的、已解析的完整报文
     MsgVec pending_msgs_;
 };
 
 inline RecvBuffer::RecvBuffer(MemoryResource* upstream, size_t chunk_size,
                               size_t max_msg_size)
-    : upstream_(upstream),
-      chunk_size_(chunk_size),
-      max_msg_size_(max_msg_size),
-      pool_(new_pool()) {
+    : max_msg_size_(max_msg_size), pool_(upstream, chunk_size) {
     // std::cout << "buffer construct" << std::endl;
+    cur_unhandled_ptr_ = pool_.base();
+    next_read_ = pool_.capacity();
 }
 
-inline RecvBuffer::~RecvBuffer() {
-    assert(wait_release_pools_.empty());
-    assert(pending_msgs_.empty());
-    assert(pool_->refCnt() == 0);
-    pool_->release();
-}
-
-inline MsgPoolPtr RecvBuffer::new_pool() {
-    std::cout << "new_pool" << std::endl;
-    recycle_pool();
-
-    if (idle_pools_.empty()) {
-        MsgPoolPtr ret =
-            std::make_unique<AutoReleasePool>(upstream_, chunk_size_);
-        cur_unhandled_ptr_ = ret->base();
-        next_read_ = ret->capacity();
-        return ret;
-    }
-
-    // 使用 idle 中的返回
-    MsgPoolPtr ret = std::move(idle_pools_.back());
-    idle_pools_.pop_back();
-
-    ret->init();
-    cur_unhandled_ptr_ = ret->base();
-    next_read_ = ret->capacity();
-    return ret;
-}
-
-inline void RecvBuffer::recycle_pool() {
-    std::cout << "recycle" << std::endl;
-    while (!wait_release_pools_.empty()) {
-        if (!wait_release_pools_.front()->is_released()) break;
-
-        idle_pools_.push_back(std::move(wait_release_pools_.front()));
-        wait_release_pools_.pop_front();
-    }
-}
+inline RecvBuffer::~RecvBuffer() { assert(pending_msgs_.empty()); }
 
 inline void RecvBuffer::parseAndPush() {
-    char* end = pool_->data();
+    char* end = pool_.data();
 
     while (cur_unhandled_ptr_ != end) {
         size_t total = static_cast<size_t>(end - cur_unhandled_ptr_);
@@ -131,7 +76,7 @@ inline void RecvBuffer::parseAndPush() {
 
         // 构建完整报文并存储
         char* data = cur_unhandled_ptr_ + sizeof(Header);
-        pending_msgs_.emplace_back(data, header.size, pool_.get());
+        pending_msgs_.emplace_back(data, header.size, pool_.get_cur_resource());
 
         // 更新
         cur_unhandled_ptr_ = data + header.size;
@@ -139,7 +84,7 @@ inline void RecvBuffer::parseAndPush() {
 }
 
 inline void RecvBuffer::handleFullIncomplete() {
-    char* end = pool_->data();
+    char* end = pool_.data();
     size_t unhandled = static_cast<size_t>(end - cur_unhandled_ptr_);
 
     // debug 用，检查此处的报文是否是不完整的
@@ -150,16 +95,10 @@ inline void RecvBuffer::handleFullIncomplete() {
 
     // 报文够小，直接拷贝到新池子
     if (unhandled <= MAX_COPY) {
-        MsgPoolPtr old_pool = std::move(pool_);
-        char* old_unhandled_ptr_ = cur_unhandled_ptr_;
-        pool_ = new_pool();
+        pool_.move_to_new_pool(cur_unhandled_ptr_, unhandled);
 
-        std::memcpy(pool_->data(), old_unhandled_ptr_, unhandled);
-        pool_->consume(unhandled);
-        next_read_ = pool_->capacity();
-
-        old_pool->set_unused();
-        wait_release_pools_.push_back(std::move(old_pool));
+        cur_unhandled_ptr_ = pool_.base();
+        next_read_ = pool_.capacity();
         return;
     }
 
@@ -174,25 +113,26 @@ inline void RecvBuffer::handleFullIncomplete() {
 inline size_t RecvBuffer::fillFromFd(int fd) {
     size_t nread = 0;
     while (true) {
-        int n = ::read(fd, pool_->data(), next_read_);
+        int n = ::read(fd, pool_.data(), next_read_);
         if (n <= 0) {
             // 被中断
             if (n < 0 && errno == EINTR) continue;
             // 读取完毕，非阻塞 socket 上无数据可读
             if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
             // 对端关闭或致命错误
+            std::cerr << "read() failed, errno=" << errno << std::endl;
             return -1;
         }
-        pool_->consume(n);
+        pool_.consume(n);
         nread += n;
 
         parseAndPush();
         // 现在 cur_unhandled_ptr_ 要么指向不完整的报文，要么无报文
 
-        if (pool_->capacity() < max_msg_size_) {
+        if (pool_.capacity() < max_msg_size_) {
             handleFullIncomplete();
         } else {
-            next_read_ = pool_->capacity();
+            next_read_ = pool_.capacity();
         }
     }
 

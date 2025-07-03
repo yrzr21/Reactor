@@ -23,7 +23,7 @@ class MonoRecyclePool {
     // 用该数据初始化新池子，可基于旧池子的数据
     void move_to_new_pool(char* data, size_t bytes);
     bool can_release();
-    MemoryResource* get_cur_resource();
+    SmartMonoPool* get_cur_resource();
 
     // 以下操作调用当前pool的接口
     void* allocate(size_t bytes);
@@ -96,7 +96,7 @@ inline bool MonoRecyclePool::can_release() {
     return wait_release_pools_.empty() && pool_->ref() == 0;
 }
 
-inline MemoryResource* MonoRecyclePool::get_cur_resource() {
+inline SmartMonoPool* MonoRecyclePool::get_cur_resource() {
     return pool_.get();
 }
 
