@@ -77,7 +77,7 @@ inline void SmartMonoPool::consume(size_t bytes) {
 inline void SmartMonoPool::add_ref() {
     // 仅要求原子序
     ref_cnt.fetch_add(1, std::memory_order_relaxed);
-    std::cout << "refcnt=" << ref_cnt << std::endl;
+    // std::cout << "refcnt=" << ref_cnt << std::endl;
 }
 
 inline size_t SmartMonoPool::ref() { return ref_cnt; }
@@ -129,7 +129,7 @@ inline void SmartMonoPool::do_deallocate(void* p, size_t bytes,
                                          size_t alignment) {
     // 仅要求原子序
     size_t old_cnt = ref_cnt.fetch_sub(1, std::memory_order_relaxed);
-    std::cout << "refcnt=" << ref_cnt << std::endl;
+    // std::cout << "refcnt=" << ref_cnt << std::endl;
     assert(old_cnt != 0 || is_using);
 
     if (old_cnt == 1 && !is_using) {

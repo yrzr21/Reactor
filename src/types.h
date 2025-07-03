@@ -22,7 +22,7 @@ class Channel;
 class Connection;
 class Epoll;
 class Socket;
-class AutoReleasePool;
+class SmartMonoPool;
 class MsgView;
 class Header;
 
@@ -56,18 +56,20 @@ using PoolOptions = std::pmr::pool_options;
 using MonotonicPool = std::pmr::monotonic_buffer_resource;
 using SynchronizedPool = std::pmr::synchronized_pool_resource;
 using UnsynchronizedPool = std::pmr::unsynchronized_pool_resource;
-using MsgPoolPtr = std::unique_ptr<AutoReleasePool>;
+using MsgPoolPtr = std::unique_ptr<SmartMonoPool>;
 
 // MsgView本身就是一个指针，所以存自身就行
 using MsgVec = std::vector<MsgView>;
+using MsgVecPtr = std::unique_ptr<std::vector<MsgView>>;
 using MsgDeq = std::deque<MsgView>;
 // 而 header 是实体，需要存指针
 using HeaderVec = std::vector<Header *>;
 using HeaderDeq = std::deque<Header *>;
 using IoVecs = std::vector<iovec>;
+using IoDeq = std::deque<iovec>;
 
 // 回调函数别名
-using MessageHandler = std::function<void(ConnectionPtr, MessagePtr)>;
+using MessageHandler = std::function<void(ConnectionPtr, MsgVec &&)>;
 using ChannelEventHandler = std::function<void()>;
 using ConnectionEventHandler = std::function<void(ConnectionPtr)>;
 using TimerHandler = std::function<void(IntVector &)>;

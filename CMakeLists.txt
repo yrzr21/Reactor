@@ -78,6 +78,11 @@ add_executable(test_recv_buffer
     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_recv_buffer.cpp
 )
 
+add_executable(test_local_mono_recycle_pool
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/ServiceProvider/test_local_mono_recycle_pool.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/base/ThreadPool.cpp
+)
+
 
 
 set(TARGET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/debug)

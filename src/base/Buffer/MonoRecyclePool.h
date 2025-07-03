@@ -44,6 +44,7 @@ class MonoRecyclePool {
     MsgPoolPtr new_pool();
 
    private:
+    // 给新 SmartMonoPool 传参
     MemoryResource* upstream_ = nullptr;
     size_t chunk_size_ = 0;
 
@@ -101,6 +102,7 @@ inline SmartMonoPool* MonoRecyclePool::get_cur_resource() {
 }
 
 inline void* MonoRecyclePool::allocate(size_t bytes) {
+    if (pool_->capacity() < bytes) change_pool();
     return pool_->allocate(bytes);
 }
 
@@ -119,7 +121,7 @@ inline void MonoRecyclePool::add_cur_ref() { pool_->add_ref(); }
 inline size_t MonoRecyclePool::ref() { return pool_->ref(); }
 
 inline MsgPoolPtr MonoRecyclePool::new_pool() {
-    std::cout << "MonoRecyclePool::new_pool" << std::endl;
+    // std::cout << "MonoRecyclePool::new_pool" << std::endl;
     recycle_pool();
 
     if (idle_pools_.empty()) {
@@ -138,7 +140,7 @@ inline MsgPoolPtr MonoRecyclePool::new_pool() {
 }
 
 inline void MonoRecyclePool::recycle_pool() {
-    std::cout << "MonoRecyclePool::recycle_pool" << std::endl;
+    // std::cout << "MonoRecyclePool::recycle_pool" << std::endl;
     while (!wait_release_pools_.empty()) {
         if (!wait_release_pools_.front()->is_released()) break;
 

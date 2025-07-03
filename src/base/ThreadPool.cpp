@@ -34,8 +34,8 @@ size_t ThreadPool::size() { return thread_pool_.size(); }
 // 线程函数，阻塞在 wait 上
 void ThreadPool::workerRoutine() {
     // log
-    printf("create %s thread(%ld).\n", threadType_.c_str(),
-           syscall(SYS_gettid));
+    // printf("create %s thread(%ld).\n", threadType_.c_str(),
+    //        syscall(SYS_gettid));
 
     while (!is_stop_) {
         Task task;
