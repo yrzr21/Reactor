@@ -54,9 +54,9 @@ list(REMOVE_ITEM SOURCES ${SRC_DIR}/main.cpp)
 #     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_buffer_pool.cpp ${SOURCES}
 # )
 
-# add_executable(test_msg_view
-#     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_msg_view.cpp ${SOURCES}
-# )
+add_executable(test_msg_view
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_msg_view.cpp
+)
 
 # add_executable(test_recv_send_buffer
 #     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_recv_send_buffer.cpp ${SOURCES}

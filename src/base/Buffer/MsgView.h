@@ -1,13 +1,14 @@
 #pragma once
 
-#include "./AutoReleasePool.h"
+#include "./SmartMonoPool.h"
 
+// 管理一段连续内存
 class MsgView {
    public:
     const char* data_;
     size_t size_;
 
-    MsgView(const char* data, size_t size, AutoReleasePool* upstream);
+    MsgView(const char* data, size_t size, SmartMonoPool* upstream);
     ~MsgView();
 
     MsgView(const MsgView& other);
@@ -16,14 +17,15 @@ class MsgView {
     MsgView(MsgView&& other) noexcept;
     MsgView& operator=(MsgView&& other) noexcept;
 
+    // 适用于不通过 MsgView 构造，但仍想指向该块内存的对象
+    void add_ref();
     void release();
 
    private:
-    AutoReleasePool* upstream_;
+    SmartMonoPool* upstream_;
 };
 
-inline MsgView::MsgView(const char* data, size_t size,
-                        AutoReleasePool* upstream)
+inline MsgView::MsgView(const char* data, size_t size, SmartMonoPool* upstream)
     : data_(data), size_(size), upstream_(upstream) {
     if (upstream_) upstream_->add_ref();
 }
@@ -66,6 +68,8 @@ inline MsgView& MsgView::operator=(MsgView&& other) noexcept {
     }
     return *this;
 }
+
+inline void MsgView::add_ref() { upstream_->add_ref(); }
 
 inline void MsgView::release() {
     if (upstream_) {
