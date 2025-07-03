@@ -62,9 +62,10 @@ add_executable(test_msg_view
 #     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_recv_send_buffer.cpp ${SOURCES}
 # )
 
-# add_executable(test_send_buffer
-#     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_send_buffer.cpp ${SOURCES}
-# )
+add_executable(test_send_buffer
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_send_buffer.cpp
+)
+
 add_executable(test_smart_mono_pool
     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_smart_mono_pool.cpp
 )
