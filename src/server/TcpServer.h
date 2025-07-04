@@ -6,13 +6,24 @@
 #include <string>
 #include <vector>
 
+#include "../base/Buffer/GlobalPool.h"
+#include "../base/ThreadPool.h"
 #include "../net/Connection/Acceptor.h"
 #include "../net/Connection/Connection.h"
-#include "../net/Event/Eventloop.h"
 #include "../net/Connection/InetAddress.h"
 #include "../net/Connection/Socket.h"
-#include "../base/ThreadPool.h"
+#include "../net/Event/Eventloop.h"
 #include "../types.h"
+
+struct TcpServerConfig {
+    std::string ip = "127.0.0.1";
+    uint16_t port = 8080;
+    int backlog = 128;
+    int nIOThreads = 4;
+    int connection_timeout_second = 60;
+    int loop_timer_interval = 60;
+    double memory_pool_size_gb = 3;
+};
 
 class TcpServer {
    private:
@@ -42,8 +53,9 @@ class TcpServer {
 
    public:
     // 初始化监听的 socket，初始化 servChannel
-    TcpServer(const std::string &ip, uint16_t port, int nListen,
-              int nSubthreads, int maxGap, int heartCycle);
+    TcpServer(const TcpServerConfig& config);
+    // TcpServer(const std::string &ip, uint16_t port, int nListen,
+    //           int nSubthreads, int maxGap, int heartCycle);
     ~TcpServer();
 
     // 开始监听，有客户端连接后启动事件循环
@@ -54,7 +66,7 @@ class TcpServer {
     void onNewConnection(SocketPtr clientSocket);
 
     // -- Connection --
-    void onMessage(ConnectionPtr connection, MessagePtr message);
+    void onMessage(ConnectionPtr connection, MsgVec &&message);
     void onSendComplete(ConnectionPtr connection);
     void onConnectionClose(ConnectionPtr connection);
     void onConnectionError(ConnectionPtr connection);

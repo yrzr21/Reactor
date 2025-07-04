@@ -1,16 +1,21 @@
-#include "EchoServer.h"
+#include "./EchoServer.h"
 
-EchoServer::EchoServer(const std::string &ip, uint16_t port, int nListen,
-                       int nSubthreads, int nWorkThreads, int maxGap,
-                       int heartCycle)
-    : tcpServer_(ip, port, nListen, nSubthreads, maxGap, heartCycle),
-      work_thread_pool_(nWorkThreads, "work") {
+#include <string>
+
+EchoServer::EchoServer(EchoServerConfig &config)
+    : tcpServer_(config.tcp_server_config),
+      work_thread_pool_(config.n_work_threads, "work"),
+      upstream_(config.echo_server_pool_options) {
+
+    config.service_provider_config.upstream = &upstream_;
+    service_provider_.emplace(config.service_provider_config);
+
     // set handler
     tcpServer_.setNewConenctionHandler([this](ConnectionPtr connection) {
         this->onNewConnection(connection);
     });
     tcpServer_.setMessageHandler(
-        [this](ConnectionPtr connection, MessagePtr message) {
+        [this](ConnectionPtr connection, MsgVec &&message) {
             this->onMessage(connection, std::move(message));
         });
     tcpServer_.setSendCompleteHandler(
@@ -42,7 +47,7 @@ void EchoServer::onNewConnection(ConnectionPtr connection) {
     // printf("NewConnection:fd=%d,ip=%s,port=%d ok.\n", connection->fd(),
     //        connection->ip().c_str(), connection->port());
 }
-void EchoServer::onMessage(ConnectionPtr connection, MessagePtr message) {
+void EchoServer::onMessage(ConnectionPtr connection, MsgVec &&message) {
     // std::cout << "onMessage: fd=" << connection->fd()
     //           << "msg=" << message->c_str() << std::endl;
     // printf("%ld HandleOnMessage: recv(eventfd=%d):%s\n", syscall(SYS_gettid),
@@ -74,11 +79,15 @@ void EchoServer::onLoopTimeout(Eventloop *loop) {
 }
 
 // using MessagePtr = std::unique_ptr<std::string>;
-void EchoServer::sendMessage(ConnectionPtr connection, MessagePtr message) {
+void EchoServer::sendMessage(ConnectionPtr connection, MsgVec &&message) {
     // printf("onMessage runing on thread(%ld).\n", syscall(SYS_gettid));
     usleep(100);
+    size_t nrecved = 0;
+    for (size_t i = 0; i < message.size(); i++) {
+        nrecved += message[i].size_;
+    }
 
-    std::string ret = "reply: " + std::move(*message);
+    std::string ret = "received: " + std::to_string(nrecved) + " bytes";
     // std::cout << "sendMessage: fd=" << connection->fd() << ", msg=" << ret
     //           << ", size=" << ret.size() << std::endl;
     // sleep(2);

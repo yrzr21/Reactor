@@ -57,6 +57,7 @@ using MonotonicPool = std::pmr::monotonic_buffer_resource;
 using SynchronizedPool = std::pmr::synchronized_pool_resource;
 using UnsynchronizedPool = std::pmr::unsynchronized_pool_resource;
 using MsgPoolPtr = std::unique_ptr<SmartMonoPool>;
+using UpstreamProvider = std::function<MemoryResource*()>;
 
 // MsgView本身就是一个指针，所以存自身就行
 using MsgVec = std::vector<MsgView>;

@@ -3,20 +3,23 @@
 #include <cassert>
 #include <iostream>
 
-TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen,
-                     int nSubthreads, int maxGap, int heartCycle)
-    : mainloop_(std::make_unique<Eventloop>(true, maxGap, heartCycle)),
-      io_thread_pool_(nSubthreads, "I/O"),
-      acceptor_(ip, port, mainloop_.get(), nListen),
-      connection_maps_(nSubthreads) {
+TcpServer::TcpServer(const TcpServerConfig &config)
+    : mainloop_(std::make_unique<Eventloop>(
+          true, config.connection_timeout_second, config.loop_timer_interval)),
+      io_thread_pool_(config.nIOThreads, "I/O"),
+      acceptor_(config.ip, config.port, mainloop_.get(), config.backlog),
+      connection_maps_(config.nIOThreads) {
     mainloop_->stopTimer();
 
     // set handler
     mainloop_->setLoopTimeoutHandler(
         [this](Eventloop *loop) { this->onLoopTimeout(loop); });
 
-    for (int i = 0; i < nSubthreads; i++) {
-        LoopPtr loop = std::make_unique<Eventloop>(false, maxGap, heartCycle);
+    // init io eventloop
+    for (int i = 0; i < config.nIOThreads; i++) {
+        LoopPtr loop =
+            std::make_unique<Eventloop>(false, config.connection_timeout_second,
+                                        config.loop_timer_interval);
         // set handler
         loop->setLoopTimeoutHandler(
             [this](Eventloop *loop) { this->onLoopTimeout(loop); });
@@ -30,10 +33,12 @@ TcpServer::TcpServer(const std::string &ip, uint16_t port, int nListen,
         subloops_.push_back(std::move(loop));
     }
 
+    // acceptor
     acceptor_.setNewConnectionHandler(
         [this](SocketPtr conn) { this->onNewConnection(std::move(conn)); });
 
-    for (int i = 0; i < nSubthreads; ++i) {
+    // mutex
+    for (int i = 0; i < config.nIOThreads; ++i) {
         mutexes_.emplace_back(std::make_unique<Mutex>());
     }
 }
@@ -79,20 +84,6 @@ void TcpServer::onNewConnection(SocketPtr clientSocket) {
     ConnectionPtr clientConnection =
         std::make_shared<Connection>(loopPtr, std::move(clientSocket));
 
-    // set callback function
-    clientConnection->setMessageHandler(
-        [this](ConnectionPtr conn, MessagePtr message) {
-            this->onMessage(std::move(conn), std::move(message));
-        });
-    clientConnection->setSendCompleteHandler(
-        [this](ConnectionPtr conn) { this->onSendComplete(std::move(conn)); });
-    clientConnection->setCloseHandler([this](ConnectionPtr conn) {
-        this->onConnectionClose(std::move(conn));
-    });
-    clientConnection->setErrorHandler([this](ConnectionPtr conn) {
-        this->onConnectionError(std::move(conn));
-    });
-
     // 继续回调 EchoServer
     if (handle_new_connection_) handle_new_connection_(clientConnection);
 
@@ -106,13 +97,37 @@ void TcpServer::onNewConnection(SocketPtr clientSocket) {
                                          clientConnection);
     }
 
-    // 服务器知晓、并准备好一切后，再注册，后续可添加拒绝注册等逻辑
-    // 业务部分仅留别拖太久
-    clientConnection->enable();
+    /*
+        事件循环线程内初始化 connection——在业务层知晓、并准备好一切后
+        业务层可设置接收缓冲区的 chunk_size 和 max_msg_size，此处暂且设为固定值
+     */
+    RecvBufferConfig config{4096, 1024};
+    subloops_[loopNo]->postTask([clientConnection, config,
+                                 server = this]() mutable {
+        // handler
+        clientConnection->setMessageHandler(
+            // 内层 lambda 捕获外层 lambda 的变量
+            [server](ConnectionPtr conn, MsgVec &&message) {
+                server->onMessage(std::move(conn), std::move(message));
+            });
+        clientConnection->setSendCompleteHandler([server](ConnectionPtr conn) {
+            server->onSendComplete(std::move(conn));
+        });
+        clientConnection->setCloseHandler([server](ConnectionPtr conn) {
+            server->onConnectionClose(std::move(conn));
+        });
+        clientConnection->setErrorHandler([server](ConnectionPtr conn) {
+            server->onConnectionError(std::move(conn));
+        });
+
+        // buffer，延迟构造
+        clientConnection->initBuffer(config);
+        clientConnection->enable();
+    });
 }
 
 // -- Connection handler --
-void TcpServer::onMessage(ConnectionPtr connection, MessagePtr message) {
+void TcpServer::onMessage(ConnectionPtr connection, MsgVec &&message) {
     if (handle_message_) handle_message_(connection, std::move(message));
 }
 void TcpServer::onSendComplete(ConnectionPtr connection) {

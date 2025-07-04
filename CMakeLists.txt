@@ -36,7 +36,7 @@ list(REMOVE_ITEM SOURCES ${SRC_DIR}/main.cpp)
 # ------------------------------------------------------------------------------
 # test
 # ------------------------------------------------------------------------------
-# add_executable(test1 ${SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/test1.cpp)
+add_executable(test1 ${SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/test1.cpp)
 
 # add_executable(test_send_client
 #     ${CMAKE_CURRENT_SOURCE_DIR}/test/clients/test_send_client.cpp ${SOURCES}
