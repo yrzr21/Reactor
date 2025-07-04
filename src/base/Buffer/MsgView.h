@@ -2,7 +2,11 @@
 
 #include "./SmartMonoPool.h"
 
-// 管理一段连续内存
+/* 
+管理一段连续内存
+
+需要持有提供内存资源的上游池指针，而非动态获取上游池指针
+ */
 class MsgView {
    public:
     const char* data_;

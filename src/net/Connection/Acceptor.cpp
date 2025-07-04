@@ -25,13 +25,14 @@ Acceptor::Acceptor(const std::string &ip, uint16_t port, Eventloop *loop,
 
     socket_.bind(InetAddress{ip, port});
 
-    channel_.enableEvent(EPOLLIN);
-
     channel_.setEventHandler(HandlerType::Readable,
                              [this] { this->onNewConnection(); });
 }
 
-void Acceptor::listen() { socket_.listen(backlog_); }
+void Acceptor::listen() {
+    channel_.enableEvent(EPOLLIN);
+    socket_.listen(backlog_);
+}
 
 void Acceptor::onNewConnection() {
     InetAddress client_addr;
