@@ -21,12 +21,24 @@ Connection::Connection(Eventloop *loop, SocketPtr clientSocket)
 
 Connection::~Connection() {
     // std::cout<<"fd "<<fd()<<" closed"<<std::endl;
+    output_buffer_->clearPendings();  // 没发完的就不发了
+    //
 }
 
 // tcpserver 在万事具备的时候才会允许 Connection 在 epoll 注册事件
 void Connection::enable() {
     channel_->enableEvent(EPOLLIN);
     channel_->enableEdgeTrigger();
+}
+
+void Connection::initBuffer(RecvBufferConfig config) {
+    auto upstream_getter = [] {
+        return ServiceProvider::getLocalMonoRecyclePool().get_cur_resource();
+    };
+
+    input_buffer_.emplace(upstream_getter, config.chunk_size,
+                          config.max_msg_size);
+    output_buffer_.emplace(upstream_getter);
 }
 
 // 把写操作交给事件循环
@@ -50,10 +62,10 @@ void Connection::postSend(std::string &&message) {
 }
 
 // register write event
-void Connection::prepareSend(MessagePtr &&message) {
+void Connection::prepareSend(MsgVec &&message) {
     if (disconnected_ || !channel_->isRegistered()) return;
     // printf("prepareSend: current thread: %ld\n", syscall(SYS_gettid));
-    output_buffer_.pushMessage(std::move(message));
+    output_buffer_->pushMessages(std::move(message));
 
     channel_->enableEvent(EPOLLOUT);  // do send in Connection::handleWritable()
 }
@@ -86,7 +98,7 @@ void Connection::onMessage() {
     lastEventTime_ = Timestamp::now();
     // printf("当前时间: %s\n", lastEventTime_.tostring().c_str());
 
-    int n = input_buffer_.fillFromFd(socket_->fd());
+    int n = input_buffer_->fillFromFd(socket_->fd());
     if (n == 0) [[unlikely]] {
         onClose();
     } else if (n == -1) [[unlikely]] {
@@ -94,22 +106,23 @@ void Connection::onMessage() {
     }
 
     // 获取报文
-    while (true) {
-        // NRVO 会自动优化这里
-        auto message = input_buffer_.popMessage();
-        if (message.size() == 0)  // 不完整报文
-            break;
+    // NRVO 会自动优化这里
+    auto msgs_vec = input_buffer_->popMessages();
+    if (msgs_vec.size() == 0) return;
 
-        auto ptr = std::make_unique<std::string>(std::move(message));
-        handle_message_(shared_from_this(), std::move(ptr));
-    }
+    handle_message_(shared_from_this(), std::move(msgs_vec));
 }
 // 可写立即尝试全部写入
 // 全部发送完毕后，禁用写并回调TcpServer::sendComplete
 void Connection::onWritable() {
-    ssize_t nsend = output_buffer_.sendAllToFd(fd());
+    if (disconnected_ || !channel_->isRegistered()) {
+        channel_->disableEvent(EPOLLOUT);
+        std::cout << "clear send buffe when disconnected" << std::endl;
+        return;
+    }
+    ssize_t nsend = output_buffer_->sendAllToFd(fd());
 
-    if (output_buffer_.empty()) {
+    if (output_buffer_->empty()) {
         channel_->disableEvent(EPOLLOUT);
         handle_send_complete_(shared_from_this());
     }

@@ -6,8 +6,8 @@
 #include "./Buffer/MonoRecyclePool.h"
 
 struct ServiceProviderConfig {
-    MemoryResource* upstream;
-    size_t chunk_size;
+    MemoryResource* upstream = nullptr;
+    size_t chunk_size = 0;
 };
 
 /*
@@ -20,7 +20,7 @@ struct ServiceProviderConfig {
 
 class ServiceProvider {
    public:
-    ServiceProvider(ServiceProviderConfig&& config);
+    ServiceProvider(const ServiceProviderConfig& config);
 
     static MonoRecyclePool& getLocalMonoRecyclePool();
 
@@ -28,12 +28,14 @@ class ServiceProvider {
     inline static ServiceProviderConfig config_;
 };
 
-inline ServiceProvider::ServiceProvider(ServiceProviderConfig&& config) {
-    config_ = std::move(config);  // 静态成员不能用初始化列表
+inline ServiceProvider::ServiceProvider(const ServiceProviderConfig& config) {
+    config_ = config;  // 静态成员不能用初始化列表
 }
 
 inline MonoRecyclePool& ServiceProvider::getLocalMonoRecyclePool() {
-    static thread_local MonoRecyclePool local_pool_(config_.upstream,
-                                                    config_.chunk_size);
+    static UpstreamProvider getter = [upstream = config_.upstream] {
+        return upstream;
+    };
+    static thread_local MonoRecyclePool local_pool_(getter, config_.chunk_size);
     return local_pool_;
 }

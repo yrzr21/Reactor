@@ -18,15 +18,21 @@ struct Header {
     uint32_t size = -1;
 };
 
+struct RecvBufferConfig {
+    size_t chunk_size;  // 每个 mono pool 的大小
+    // chunk_size >= max_msg_size，最好是其数倍
+    size_t max_msg_size;  // 本缓冲区的最大报文的大小
+};
+
 // 低于这个大小、却越过阈值的报文直接拷贝
+// 缓冲区不够时换池子的临界值
 constexpr size_t MAX_COPY = 512;
 
 // 所有报文大小都不大于 MAX_MSG_SIZE，一个缓冲区一定装得下
 // 应被上级RAII管理
 class RecvBuffer {
    public:
-    RecvBuffer(MemoryResource* upstream, size_t chunk_size,
-               size_t max_msg_size);
+    RecvBuffer(UpstreamProvider getter, size_t chunk_size, size_t max_msg_size);
     ~RecvBuffer();
 
     size_t fillFromFd(int fd);
@@ -50,9 +56,9 @@ class RecvBuffer {
     MsgVec pending_msgs_;
 };
 
-inline RecvBuffer::RecvBuffer(MemoryResource* upstream, size_t chunk_size,
+inline RecvBuffer::RecvBuffer(UpstreamProvider getter, size_t chunk_size,
                               size_t max_msg_size)
-    : max_msg_size_(max_msg_size), pool_(upstream, chunk_size) {
+    : max_msg_size_(max_msg_size), pool_(std::move(getter), chunk_size) {
     // std::cout << "buffer construct" << std::endl;
     cur_unhandled_ptr_ = pool_.base();
     next_read_ = pool_.capacity();

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstring>
+#include <functional>
 #include <memory_resource>
 
 #include "../../types.h"
@@ -15,7 +17,7 @@
  */
 class MonoRecyclePool {
    public:
-    MonoRecyclePool(MemoryResource* upstream, size_t chunk_size);
+    MonoRecyclePool(UpstreamProvider getter, size_t chunk_size);
     ~MonoRecyclePool();
 
     // 单纯换池子，不做复制
@@ -45,7 +47,7 @@ class MonoRecyclePool {
 
    private:
     // 给新 SmartMonoPool 传参
-    MemoryResource* upstream_ = nullptr;
+    UpstreamProvider get_upstream_;
     size_t chunk_size_ = 0;
 
     // 等待释放的 pool，不再分配内存
@@ -57,10 +59,10 @@ class MonoRecyclePool {
     MsgPoolPtr pool_ = new_pool();
 };
 
-inline MonoRecyclePool::MonoRecyclePool(MemoryResource* upstream,
+inline MonoRecyclePool::MonoRecyclePool(UpstreamProvider getter,
                                         size_t chunk_size)
-    : upstream_(upstream), chunk_size_(chunk_size) {
-    assert(upstream_);
+    : get_upstream_(std::move(getter)), chunk_size_(chunk_size) {
+    assert(get_upstream_);
     assert(chunk_size_);
 }
 
@@ -127,7 +129,7 @@ inline MsgPoolPtr MonoRecyclePool::new_pool() {
     if (idle_pools_.empty()) {
         // 构造时自动 init
         MsgPoolPtr ret =
-            std::make_unique<SmartMonoPool>(upstream_, chunk_size_);
+            std::make_unique<SmartMonoPool>(get_upstream_(), chunk_size_);
         return ret;
     }
 
@@ -135,7 +137,7 @@ inline MsgPoolPtr MonoRecyclePool::new_pool() {
     MsgPoolPtr ret = std::move(idle_pools_.back());
     idle_pools_.pop_back();
 
-    ret->init();
+    ret->init(get_upstream_(), chunk_size_);
     return ret;
 }
 

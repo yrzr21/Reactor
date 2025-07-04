@@ -4,11 +4,19 @@
 #include <functional>
 #include <memory>
 
+#include "../../base/Buffer/MonoRecyclePool.h"
+#include "../../base/Buffer/RecvBuffer.h"
+#include "../../base/Buffer/SendBuffer.h"
+#include "../../base/ServiceProvider.h"
+#include "../../base/Timestamp.h"
 #include "../../types.h"
-#include "../../base/Buffer.h"
 #include "../Event/Channel.h"
 #include "Socket.h"
-#include "../../base/Timestamp.h"
+
+struct ConnectionConfig {
+    Eventloop *loop;
+    SocketPtr clientSocket;
+};
 
 // 封装与客户端的连接
 class Connection : public std::enable_shared_from_this<Connection> {
@@ -18,8 +26,8 @@ class Connection : public std::enable_shared_from_this<Connection> {
     ChannelPtr channel_;
 
     // -- buffer --
-    Buffer input_buffer_;
-    Buffer output_buffer_;
+    std::optional<RecvBuffer> input_buffer_;
+    std::optional<SendBuffer> output_buffer_;
 
     Timestamp lastEventTime_ = Timestamp::now();
     AtomicBool disconnected_ = false;
@@ -33,13 +41,15 @@ class Connection : public std::enable_shared_from_this<Connection> {
    public:
     Eventloop *loop_;  // 所处的事件循环
     Connection(Eventloop *loop, SocketPtr clientSocket);
+    Connection(ConnectionConfig &&config);
     ~Connection();
     // ~Connection() = default;
 
     void enable();
+    void initBuffer(RecvBufferConfig config);
 
     void postSend(std::string &&message);
-    void prepareSend(MessagePtr &&message);
+    void prepareSend(MsgVec &&message);
 
     bool isTimeout(time_t now, int maxGap);
 
