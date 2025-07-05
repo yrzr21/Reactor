@@ -10,7 +10,22 @@
 /*
 封装 SmartMonoPool，注意，它不继承自memory_resource
 
-操作与 SmartMonoPool 类似
+适用于大块内存一次性分配，不支持多次分配
+适用于pmr体系，用户需明确使用内存所属的池释放内存，使用流程：
+    1. get_cur_resource 获取当前池指针 p
+    2. 分配内存
+    3. p->deallocate
+
+分配内存的方式有两种：
+    1. allocate 自动分配内存、换池
+    2. 自行使用 data+consume+add_ref & change_pool+capacity 管理池内存分配与换池
+前者适用于已知要申请的内存大小，后者适用于
+
+todo：申请的内存大小不支持高于 chunk_size_，可以支持一下
+
+仅支持单线程，用于高效分配内存并释放
+多线程可能需要：锁+一个封装了allocate和get_cur_resource的池子
+不过未来不太可能支持多线程
 
 应被上级RAII管理，即所有资源引用计数应为0 再析构
 
@@ -29,7 +44,6 @@ class MonoRecyclePool {
 
     // 以下操作调用当前pool的接口
     void* allocate(size_t bytes);
-    void deallocate();
 
     size_t capacity();
     char* base();
@@ -107,8 +121,6 @@ inline void* MonoRecyclePool::allocate(size_t bytes) {
     if (pool_->capacity() < bytes) change_pool();
     return pool_->allocate(bytes);
 }
-
-inline void MonoRecyclePool::deallocate() { pool_->deallocate(nullptr, 0, 0); }
 
 inline size_t MonoRecyclePool::capacity() { return pool_->capacity(); }
 
