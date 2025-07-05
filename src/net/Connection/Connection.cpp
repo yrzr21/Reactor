@@ -42,30 +42,35 @@ void Connection::initBuffer(RecvBufferConfig config) {
 }
 
 // 把写操作交给事件循环
-void Connection::postSend(std::string &&message) {
+template <typename T>
+void Connection::postSend(T &&message, bool split = true) {
     if (disconnected_ || !channel_->isRegistered()) return;
 
-    MessagePtr msg_ptr = std::make_unique<std::string>(std::move(message));
-
-    if (loop_->inIOThread()) {
-        prepareSend(std::move(msg_ptr));  // 0 工作线程
+    // 零拷贝推入缓冲区
+    using RawT = std::decay_t<T>;
+    if constexpr (std::is_same_v<RawT, MsgView>) {
+        output_buffer_->pushMessage(std::forward<T>(message));
+    } else if constexpr (std::is_same_v<RawT, MsgVec>) {
+        if (split)
+            output_buffer_->pushMessages(std::forward<T>(message));
+        else
+            output_buffer_->pushMessage(std::forward<T>(message));
     } else {
-        // auto task = [this, ptr = std::move(msg_ptr)]() mutable {
-        //     this->prepareSend(std::move(ptr));
-        // };
-        // loop_->postTask(std::move(task));
-        loop_->postTask(
-            [self = shared_from_this(), ptr = std::move(msg_ptr)]() mutable {
-                self->prepareSend(std::move(ptr));
-            });
+        static_assert(always_false<T>, "Unsupported message type");
+    }
+
+    // io线程注册写事件
+    if (loop_->inIOThread()) {
+        enableWrite();  // 0 工作线程
+    } else {
+        loop_->postTask([self = shared_from_this()]() { self->enableWrite(); });
     }
 }
 
 // register write event
-void Connection::prepareSend(MsgVec &&message) {
+void Connection::enableWrite() {
     if (disconnected_ || !channel_->isRegistered()) return;
     // printf("prepareSend: current thread: %ld\n", syscall(SYS_gettid));
-    output_buffer_->pushMessages(std::move(message));
 
     channel_->enableEvent(EPOLLOUT);  // do send in Connection::handleWritable()
 }

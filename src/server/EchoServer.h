@@ -15,12 +15,8 @@ constexpr size_t LARGEST_BLOCK = 1024;
 
 struct EchoServerConfig {
     TcpServerConfig tcp_server_config;
-    // upstream chunk_size
     ServiceProviderConfig service_provider_config;
-
     size_t n_work_threads;
-    // max_blocks_per_chunk largest_required_pool_block
-    PoolOptions echo_server_pool_options = {40, 4096};
 };
 
 class EchoServer {

@@ -6,7 +6,6 @@ EchoServer::EchoServer(EchoServerConfig &config)
     : tcpServer_(config.tcp_server_config),
       work_thread_pool_(config.n_work_threads, "work"),
       upstream_(config.echo_server_pool_options) {
-
     config.service_provider_config.upstream = &upstream_;
     service_provider_.emplace(config.service_provider_config);
 
@@ -87,7 +86,19 @@ void EchoServer::sendMessage(ConnectionPtr connection, MsgVec &&message) {
         nrecved += message[i].size_;
     }
 
-    std::string ret = "received: " + std::to_string(nrecved) + " bytes";
+    // 构造多个报文发回去
+    auto &unsync_pool = ServiceProvider::getLocalUnsyncPool();
+    std::pmr::string msg{&unsync_pool};
+    msg += "received: ";
+    msg += std::to_string(nrecved);
+    msg += " bytes";
+
+    std::pmr::string msg2{msg, &unsync_pool};
+
+    MsgVec msgs;
+    msgs.emplace_back(std::move(ret));
+    msgs.emplace_back(std::move(ret2));
+
     // std::cout << "sendMessage: fd=" << connection->fd() << ", msg=" << ret
     //           << ", size=" << ret.size() << std::endl;
     // sleep(2);

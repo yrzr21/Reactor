@@ -48,8 +48,8 @@ class Connection : public std::enable_shared_from_this<Connection> {
     void enable();
     void initBuffer(RecvBufferConfig config);
 
-    void postSend(std::string &&message);
-    void prepareSend(MsgVec &&message);
+    template <typename T>  // MsgView/MsgVec, MsgVec可选择合并或分裂
+    void postSend(T &&message, bool split = true);
 
     bool isTimeout(time_t now, int maxGap);
 
@@ -69,6 +69,9 @@ class Connection : public std::enable_shared_from_this<Connection> {
     void onWritable();
     void onClose();
     void onError();
+
+   private:
+    void enableWrite();  // postSend 会把它交给io线程执行
 };
 
 #endif  // !CONNECTION
