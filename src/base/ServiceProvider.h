@@ -7,7 +7,10 @@
 
 struct ServiceProviderConfig {
     MemoryResource* upstream = nullptr;
-    size_t chunk_size = 0;
+    size_t io_chunk_size = 0;
+
+    // max_blocks_per_chunk largest_required_pool_block
+    PoolOptions work_options = {40, 1024};
 };
 
 /*
@@ -22,7 +25,10 @@ class ServiceProvider {
    public:
     ServiceProvider(const ServiceProviderConfig& config);
 
+    // 大块、一次性分配、大小各异内存
     static MonoRecyclePool& getLocalMonoRecyclePool();
+    // 小块、多次分配、内存
+    static UnsynchronizedPool& getLocalUnsyncPool();
 
    private:
     inline static ServiceProviderConfig config_;
@@ -36,6 +42,13 @@ inline MonoRecyclePool& ServiceProvider::getLocalMonoRecyclePool() {
     static UpstreamProvider getter = [upstream = config_.upstream] {
         return upstream;
     };
-    static thread_local MonoRecyclePool local_pool_(getter, config_.chunk_size);
+    static thread_local MonoRecyclePool local_pool_(getter,
+                                                    config_.io_chunk_size);
+    return local_pool_;
+}
+
+inline UnsynchronizedPool& ServiceProvider::getLocalUnsyncPool() {
+    static thread_local UnsynchronizedPool local_pool_(config_.work_options,
+                                                       config_.upstream);
     return local_pool_;
 }
