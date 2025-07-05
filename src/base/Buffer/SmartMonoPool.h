@@ -6,7 +6,6 @@
 #include <memory_resource>
 
 #include "../../types.h"
-#include "./BufferPool.h"
 
 /*
 本池设计目标为快速申请、提高复用率，代价是需要在引用计数为0时归还
@@ -20,6 +19,8 @@
         ——适用于已知申请内存的大小情况，例如业务层的用法
     2. 自行使用 data+consume+add_ref 管理池内存分配，然后 deallocate
         ——适用于未知需要多少内存、但最大大小已知的情况，例如 recvbuffer 中的用法
+
+pmr::string SSO 不申请内存，构造时不增加引用计数，析构时也不减少引用计数
 
 应被上级RAII管理，即所有资源引用计数为0后再析构
  */

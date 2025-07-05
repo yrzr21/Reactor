@@ -38,6 +38,7 @@ class MonoRecyclePool {
     // 单纯换池子，不做复制
     void change_pool();
     // 用该数据初始化新池子，可基于旧池子的数据
+    // 若有不完整未分配数据在旧池子，用户应主动更新
     void move_to_new_pool(char* data, size_t bytes);
     bool can_release();
     SmartMonoPool* get_cur_resource();

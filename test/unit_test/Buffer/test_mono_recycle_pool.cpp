@@ -8,10 +8,11 @@
 
 int main() {
     constexpr size_t CHUNK_SIZE = 64;
-    std::pmr::monotonic_buffer_resource upstream;
-
-    // 创建一个 MonoRecyclePool 实例
-    MonoRecyclePool pool(&upstream, CHUNK_SIZE);
+    auto getter = [] {
+        static std::pmr::monotonic_buffer_resource upstream;
+        return &upstream;
+    };
+    MonoRecyclePool pool(getter, CHUNK_SIZE);
 
     std::cout << "\n==== Test: 初始写入 ====\n";
 
@@ -35,9 +36,7 @@ int main() {
 
     // 切换池子，旧池被标记 unused，但仍被引用，不会立即释放
     pool.change_pool();
-
     assert(!pool1->is_released());  // 还没释放
-    std::cout << "切换后旧池尚未释放\n";
 
     std::cout << "\n==== Test: 引用归还 ====\n";
 
