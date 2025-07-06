@@ -63,7 +63,15 @@ inline RecvBuffer::RecvBuffer(UpstreamProvider getter, size_t chunk_size,
     next_read_ = pool_.capacity();
 }
 
-inline RecvBuffer::~RecvBuffer() { assert(pending_msgs_.empty()); }
+inline RecvBuffer::~RecvBuffer() {
+    pending_msgs_.clear();
+
+    // // todo 延迟回收资源
+    // if(!pool_.can_release()){
+
+    // }
+    assert(pool_.can_release());
+}
 
 inline void RecvBuffer::parseAndPush() {
     char* end = pool_.data();
