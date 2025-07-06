@@ -1,16 +1,14 @@
 #include <fcntl.h>
 #include <unistd.h>
-#include <memory_resource>
-#include <vector>
-#include <iostream>
+
 #include <cassert>
 #include <cstring>
+#include <iostream>
+#include <memory_resource>
+#include <vector>
 
-#include "../../../src/base/Buffer/RecvBuffer.h"  // 你自己的路径
 #include "../../../src/base/Buffer/MsgView.h"
-
-// constexpr size_t CHUNK_SIZE = 1024;
-constexpr size_t MAX_MSG_SIZE = 512;
+#include "../../../src/base/Buffer/RecvBuffer.h"
 
 std::vector<char> make_msg(const std::string& payload) {
     uint32_t len = htonl(payload.size());  // 网络字节序
@@ -27,21 +25,15 @@ void set_nonblocking(int fd) {
 }
 
 int main() {
-    // pipe 模拟 fd 通信
     int fds[2];
-    if (pipe(fds) != 0) {
-        perror("pipe");
-        return 1;
-    }
+    pipe(fds);
+    set_nonblocking(fds[0]);
 
-    set_nonblocking(fds[0]);  // 设置 read 端为非阻塞
-
-    // 创建上游 pmr 资源
-    char upstream_buf[4096];
-    std::pmr::monotonic_buffer_resource upstream(upstream_buf, sizeof(upstream_buf));
-
-    // 创建 RecvBuffer
-    RecvBuffer buffer(&upstream, CHUNK_SIZE, MAX_MSG_SIZE);
+    auto getter = [] {
+        static std::pmr::monotonic_buffer_resource upstream;
+        return &upstream;
+    };
+    RecvBuffer buffer(getter, 1024, 512);
 
     // 写入多个报文（拼接写）
     std::vector<std::string> payloads = {"abc", "12345", "net-msg", "EOF"};

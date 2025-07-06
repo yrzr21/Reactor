@@ -115,7 +115,7 @@ inline IoVecs SendUnit::get_iovecs() {
 }
 
 inline size_t SendUnit::advance(size_t bytes) {
-    size_t remain_to_sent = header_base_->size + sizeof(Header) - nsent_;
+    size_t remain_to_sent = ntohl(header_base_->size) + sizeof(Header) - nsent_;
     size_t consumed = std::min(bytes, remain_to_sent);
 
     nsent_ += consumed;
@@ -123,7 +123,7 @@ inline size_t SendUnit::advance(size_t bytes) {
 }
 
 inline bool SendUnit::finished() {
-    return nsent_ == header_base_->size + sizeof(Header);
+    return nsent_ == ntohl(header_base_->size) + sizeof(Header);
 }
 
 inline void SendUnit::init_header() {
@@ -132,4 +132,6 @@ inline void SendUnit::init_header() {
         reinterpret_cast<Header*>(upstream_->allocate(sizeof(Header)));
     header_base_->size = 0;
     for (const auto& mv : msg_view_vec_) header_base_->size += mv.size_;
+    // std::cout << "send unit size=" << header_base_->size << std::endl;
+    header_base_->size = htonl(header_base_->size);
 }

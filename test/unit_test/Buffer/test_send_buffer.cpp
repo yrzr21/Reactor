@@ -11,74 +11,73 @@
 #include "../../../src/base/Buffer/SendBuffer.h"
 #include "../../../src/base/Buffer/SmartMonoPool.h"
 
-void test_sendbuffer() {
-    // 准备基础内存池
-    char buffer[1024];
-    std::pmr::monotonic_buffer_resource upstream_pool(buffer, sizeof(buffer));
+using namespace std;
 
-    // 创建 AutoReleasePool（用于 MsgView）
-    SmartMonoPool auto_pool(&upstream_pool, 512);
+MsgView make_msg_view(pmr::string str) {
+    MsgView mv(std::move(str));
+    return mv;
+};
 
-    // 构造测试数据
-    const char* msg1 = "Hello, ";
-    const char* msg2 = "world!";
-    size_t len1 = strlen(msg1);
-    size_t len2 = strlen(msg2);
+void push_data(MsgVec& msgs) {
+    msgs.emplace_back(make_msg_view("ok,"));
+    msgs.emplace_back(make_msg_view("fine,"));
+    msgs.emplace_back(make_msg_view("whatever,"));
+}
 
-    // 把数据复制到 auto_pool 中
-    char* p1 = auto_pool.data();
-    std::memcpy(p1, msg1, len1);
-    auto_pool.consume(len1);
+void parse_msgs_and_print(int fd) {
+    char buf[4096];
+    int n = read(fd, buf, 4096);
 
-    char* p2 = auto_pool.data();
-    std::memcpy(p2, msg2, len2);
-    auto_pool.consume(len2);
+    int offset = 0;
+    while (offset < n) {
+        assert(offset < 4096);
+        Header* header = reinterpret_cast<Header*>(buf + offset);
+        size_t size = ntohl(header->size);
+        std::cout << "msg size = " << size << ", data = ";
+        string msg(buf + offset + sizeof(Header), size);
+        std::cout << msg << std::endl;
 
-    // 构造 MsgView
-    MsgView mv1(p1, len1, &auto_pool);
-    MsgView mv2(p2, len2, &auto_pool);
-    // ref=2
-
-    // 构造 SendBuffer 并添加 MsgView
-    SendBuffer sendbuf(&upstream_pool);
-    MsgVec vec = {std::move(mv1), std::move(mv2)};
-    sendbuf.pushMessage(std::move(vec));  // 多段合成一个SendUnit
-
-    // 创建管道模拟fd写入
-    int fds[2];
-    assert(pipe(fds) == 0);
-
-    // 设置非阻塞也可以（测试 EAGAIN）
-    size_t sent = sendbuf.sendAllToFd(fds[1]);
-    std::cout << "Sent bytes: " << sent << std::endl;
-
-    // 读取数据
-    char read_buf[128] = {};
-    ssize_t n = read(fds[0], read_buf, sizeof(read_buf));
-    std::cout << "Received bytes: " << n << std::endl;
-
-    // 读取的数据应该是 header + msg1 + msg2
-    Header* hdr = reinterpret_cast<Header*>(read_buf);
-    std::cout << "Header size = " << hdr->size << std::endl;
-    std::string body(read_buf + sizeof(Header), n - sizeof(Header));
-    std::cout << "Body = " << body << std::endl;
-
-    // 验证
-    assert(hdr->size == len1 + len2);
-    assert(body == "Hello, world!");
-    assert(sendbuf.empty());
-
-    // 主动释放（测试引用计数）
-    auto_pool.set_unused();
-    assert(auto_pool.is_released());
-
-    close(fds[0]);
-    close(fds[1]);
-
-    std::cout << "Test passed ✅" << std::endl;
+        offset += (sizeof(Header) + size);
+    }
 }
 
 int main() {
-    test_sendbuffer();
+    int fd[2];
+    pipe(fd);
+
+    auto getter = [] {
+        static std::pmr::monotonic_buffer_resource upstream;
+        return &upstream;
+    };
+    SendBuffer sendbuf(getter);
+
+    std::cout << "测试多个msg view作为一个send unit发送" << std::endl;
+    MsgVec msgs1;
+    push_data(msgs1);
+    sendbuf.pushMessage(std::move(msgs1));
+    sendbuf.sendAllToFd(fd[1]);
+    parse_msgs_and_print(fd[0]);
+
+    std::cout << "\n测试每个msg view均单独作为一个send unit发送" << std::endl;
+    MsgVec msgs2;
+    push_data(msgs2);
+    sendbuf.pushMessages(std::move(msgs2));
+    sendbuf.sendAllToFd(fd[1]);
+    parse_msgs_and_print(fd[0]);
+
+    std::cout << "\n测试多种情况的send unit发送" << std::endl;
+    MsgVec msgs3;
+    push_data(msgs3);
+    sendbuf.pushMessage(std::move(msgs3));
+    MsgVec msgs4;
+    push_data(msgs4);
+    sendbuf.pushMessages(std::move(msgs4));
+    sendbuf.sendAllToFd(fd[1]);
+    parse_msgs_and_print(fd[0]);
+
+    std::cout << "Test passed" << std::endl;
+    close(fd[0]);
+    close(fd[1]);
+
     return 0;
 }

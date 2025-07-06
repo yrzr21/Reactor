@@ -9,7 +9,6 @@
 #include <stack>
 
 #include "../../types.h"
-#include "./BufferPool.h"
 #include "./MonoRecyclePool.h"
 #include "./MsgView.h"
 #include "./SmartMonoPool.h"
