@@ -8,21 +8,23 @@
 #include "../../types.h"
 
 /*
-本池设计目标为快速申请、提高复用率，代价是需要在引用计数为0时归还
-因此不适用于超长生命周期对象，若长时间不归还，会导致本池已释放的内存成为“碎片”，降低内存利用率
+- 模拟monotonic_buffer_resource分配内存，但可用于未知大小对象分配，通过提供池内部指针的方式实现
+- 基于引用计数，在合适时机可主动释放池
 
-除了初始化，不会向上游申请内存。需要持有提供内存资源的上游池指针，而非动态获取上游池指针
+内存分配方式：
+    1. allocate/deallocate：已知大小，自动修改计数并分配内存。deallocate 等价于减小引用计数
+    2. data+consume+add_ref+deallocate：未知大小，自行管理计数与内存分配
 
-两种用法：
-    1. allocate/deallocate。
-        deallocate 等价于减小引用计数，参数无意义
-        ——适用于已知申请内存的大小情况，例如业务层的用法
-    2. 自行使用 data+consume+add_ref 管理池内存分配，然后 deallocate
-        ——适用于未知需要多少内存、但最大大小已知的情况，例如 recvbuffer 中的用法
-
-pmr::string SSO 不申请内存，构造时不增加引用计数，析构时也不减少引用计数
-
-应被上级RAII管理，即所有资源引用计数为0后再析构
+行为：
+    1. 模拟monotonic_buffer_resource，提供池内部指针用于未知大小对象分配
+    2. 在!is_using且ref_cnt==0时自动释放内存池的内存
+    3. 初始化时申请一次内存，其余时刻除非显式重新 init，不再向上级申请内存
+    4. 持有提供内存资源的上游池指针，而非动态获取上游池指针
+限制：
+    1. do_allocate/init 必须在单线程内部进行
+    2. 其余线程可修改引用计数，不应向此池申请内存
+    3. 仅适用于一次性分配内存的线程，小心 string 的 SSO
+    4. SmartMonoPool的持有者应保证SmartMonoPool的资源释放
  */
 
 class SmartMonoPool : public MemoryResource {
@@ -30,33 +32,35 @@ class SmartMonoPool : public MemoryResource {
     SmartMonoPool(MemoryResource* upstream, size_t chunk_size);
     ~SmartMonoPool();  // 应被 RAII 管理，类似于 malloc
 
-    size_t capacity();
     char* base();
     char* data();                // 下次写入的位置
     void consume(size_t bytes);  // 调用者确保消费的内存不会超过持有的内存
-
-    void add_ref();
-    size_t ref();
-
-    void set_unused();
-    void release();
-    bool is_released();
+    size_t capacity();
 
     // 若为 nullptr 和 0，则继续使用原有 upstream
     // 调用者应确保已经 release
     void init(MemoryResource* upstream = nullptr, size_t chunk_size = 0);
 
+    // 以下允许多线程访问，上面的不允许
+    void add_ref();
+    size_t ref();
+    void set_unused();
+    void
+    release();  // 调用者需确保当前池有效，只有最后一个持有引用的线程可以调用它
+    bool is_released();
+
    private:
     void* do_allocate(size_t bytes, size_t alignment) override;
+    // 以下允许多线程访问，上面的不允许
     void do_deallocate(void* p, size_t bytes, size_t alignment) override;
     bool do_is_equal(const memory_resource& __other) const noexcept override;
 
    private:
-    // 此类中非原子类型，仅允许在处理连接的事件循环修改
-    std::atomic<size_t> ref_cnt = 0;
-    // 即便 ref_cnt=0， 若 is_using，也不应释放
-    std::atomic_bool is_using = true;
+    std::atomic<size_t> ref_cnt = 0;   // ref_cnt==0 && !is_using 时释放
+    std::atomic_bool is_using = true;  // 禁止使用后不再分配内存
+    std::atomic_bool released = true;  // 防止重复释放
 
+    // 仅允许单线程修改
     MemoryResource* upstream_ = nullptr;
     char* base_ = nullptr;
     char* cur_ = nullptr;
@@ -74,30 +78,54 @@ inline char* SmartMonoPool::data() { return cur_; }
 
 inline void SmartMonoPool::consume(size_t bytes) {
     cur_ += bytes;
-    assert(cur_ <= base_ + total_size_);
+    assert(cur_ <= base() + total_size_);
 }
 
 inline void SmartMonoPool::add_ref() {
-    // 仅要求原子序
+    // 仅要求原子性
     ref_cnt.fetch_add(1, std::memory_order_relaxed);
     // std::cout << "refcnt=" << ref_cnt << std::endl;
 }
 
-inline size_t SmartMonoPool::ref() { return ref_cnt; }
+inline size_t SmartMonoPool::ref() {
+    // 仅要求原子性
+    return ref_cnt.load(std::memory_order_relaxed);
+}
 
 inline void SmartMonoPool::set_unused() {
-    is_using.store(false);
-    if (ref_cnt == 0) release();
+    /*
+    如果乱序先执行if，可能丢失释放时机：
+        1.线程A：set_unused 先执行if，看到ref_cnt==1，不释放
+        2.线程B：do_deallocate，看到is_using==true，修改ref_cnt==0，不释放，返回
+        3.线程A：is_using==false，返回
+    二者本应其中一个释放内存池，但都没有释放
+    */
+
+    // 禁止前后乱序
+    is_using.store(false, std::memory_order_seq_cst);
+    if (ref_cnt.load(std::memory_order_seq_cst) == 0) release();
 }
 
 inline size_t SmartMonoPool::capacity() {
-    return total_size_ - static_cast<size_t>(cur_ - base_);
+    return total_size_ - static_cast<size_t>(cur_ - base());
 }
 
-inline bool SmartMonoPool::is_released() { return base_ == nullptr; }
+inline bool SmartMonoPool::is_released() {
+    return released.load(std::memory_order_relaxed);
+}
 
 inline void SmartMonoPool::release() {
-    is_using.store(false);
+    /*
+        release 可能被多次进入，需要 flag is_released，保证只有一个线程进入
+        成功cas(is_released==false)，阻止后续乱序
+        失败(is_released==true)，允许后续乱序
+    */
+    bool expected = false;
+    if (!released.compare_exchange_strong(expected, true,
+                                          std::memory_order_acquire,
+                                          std::memory_order_relaxed))
+        return;  // released==true，直接返回
+
     upstream_->deallocate(base_, total_size_);
     base_ = nullptr;
 }
@@ -112,12 +140,17 @@ inline void SmartMonoPool::init(MemoryResource* upstream, size_t chunk_size) {
 
     base_ = static_cast<char*>(upstream_->allocate(total_size_));
     cur_ = base_;
-    ref_cnt.store(0);
-    is_using.store(true);
+
+    ref_cnt.store(0, std::memory_order_relaxed);
+    released.store(false, std::memory_order_relaxed);
+
+    // 前面的不能跑到这后面，否则is_using为真但base_等变量的可能还没初始化
+    is_using.store(true, std::memory_order_release);
 }
 
 void* SmartMonoPool::do_allocate(size_t bytes, size_t alignment) {
-    if (capacity() < bytes) {
+    // 如果进入if分支，那么if后的指令的提前执行都会作废，所以只保证原子性就行
+    if (capacity() < bytes || !is_using.load(std::memory_order_relaxed)) {
         std::cout << "SmartMonoPool::do_allocate cannot allocate " << bytes
                   << " bytes" << std::endl;
         return nullptr;
@@ -133,9 +166,9 @@ inline void SmartMonoPool::do_deallocate(void* p, size_t bytes,
     // 仅要求原子序
     size_t old_cnt = ref_cnt.fetch_sub(1, std::memory_order_relaxed);
     // std::cout << "refcnt=" << ref_cnt << std::endl;
-    assert(old_cnt != 0 || is_using);
+    assert(old_cnt != 0);
 
-    if (old_cnt == 1 && !is_using) {
+    if (old_cnt == 1 && !is_using.load(std::memory_order_relaxed)) {
         // 释放内存给上游
         release();
     }
