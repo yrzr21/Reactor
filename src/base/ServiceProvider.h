@@ -4,6 +4,7 @@
 
 #include "../types.h"
 #include "./Buffer/MonoRecyclePool.h"
+#include "./Buffer/SyncPool.h"
 
 struct ServiceProviderConfig {
     MemoryResource* upstream = nullptr;
@@ -15,8 +16,7 @@ struct ServiceProviderConfig {
 
 /*
 全局服务点，其功能有：
-    1. 为线程提供本地 MonoRecyclePool，而无需修改大量代码，如 ThreadPool
-    工作线程的内存申请
+    1. 为线程提供本地 MonoRecyclePool/SyncPool，而无需修改大量代码
 
 松耦合的模型
  */
@@ -27,8 +27,9 @@ class ServiceProvider {
 
     // 大块、一次性分配、大小各异内存
     static MonoRecyclePool& getLocalMonoRecyclePool();
-    // 小块、多次分配、内存
-    static UnsynchronizedPool& getLocalUnsyncPool();
+
+    // local 也要 sync，因为容器可能被其他线程访问
+    static SyncPool& getLocalSyncPool();
 
    private:
     inline static ServiceProviderConfig config_;
@@ -47,8 +48,8 @@ inline MonoRecyclePool& ServiceProvider::getLocalMonoRecyclePool() {
     return local_pool_;
 }
 
-inline UnsynchronizedPool& ServiceProvider::getLocalUnsyncPool() {
-    static thread_local UnsynchronizedPool local_pool_(config_.work_options,
-                                                       config_.upstream);
+inline SyncPool& ServiceProvider::getLocalSyncPool() {
+    static thread_local SyncPool local_pool_(config_.work_options,
+                                             config_.upstream);
     return local_pool_;
 }
