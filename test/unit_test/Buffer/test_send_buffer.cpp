@@ -45,11 +45,8 @@ int main() {
     int fd[2];
     pipe(fd);
 
-    auto getter = [] {
-        static std::pmr::monotonic_buffer_resource upstream;
-        return &upstream;
-    };
-    SendBuffer sendbuf(getter);
+    static std::pmr::monotonic_buffer_resource upstream;
+    SendBuffer sendbuf(&upstream);
 
     std::cout << "测试多个msg view作为一个send unit发送" << std::endl;
     MsgVec msgs1;

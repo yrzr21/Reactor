@@ -78,6 +78,8 @@ class Connection : public std::enable_shared_from_this<Connection> {
 template <typename T>
 inline void Connection::postSend(T &&message, bool split) {
     if (disconnected_ || !channel_->isRegistered()) return;
+        // std::cout << "[tid=" << std::this_thread::get_id()
+        //       << "] about to pushMessage " << std::endl;
 
     // 零拷贝推入缓冲区
     using RawT = std::decay_t<T>;

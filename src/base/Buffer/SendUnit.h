@@ -37,7 +37,11 @@ class SendUnit {
 
 inline SendUnit::SendUnit(MsgView&& mv, MemoryResource* upstream)
     : upstream_(upstream) {
+    // std::cout << "[tid=" << std::this_thread::get_id() << "] before move mv"
+    //           << std::endl;
     msg_view_vec_.push_back(std::move(mv));
+    // std::cout << "[tid=" << std::this_thread::get_id() << "] after move mv"
+    //           << std::endl;
     init_header();
 }
 

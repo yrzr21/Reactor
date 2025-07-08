@@ -17,7 +17,7 @@
 // 应被上级RAII管理
 class SendBuffer {
    public:
-    SendBuffer(UpstreamProvider getter);
+    SendBuffer(MemoryResource* upstream);
     ~SendBuffer();
 
     // 每个msg view都是一个单独的send unit
@@ -40,31 +40,34 @@ class SendBuffer {
     void updateState(size_t nwrite);
 
    private:
-    UpstreamProvider get_upstream_;  // 留给SendUnit申请header用
+    MemoryResource* upstream_;  // 留给SendUnit申请header用
 
     std::deque<SendUnit> pending_units_;
 };
 
-inline SendBuffer::SendBuffer(UpstreamProvider getter)
-    : get_upstream_(std::move(getter)) {}
+inline SendBuffer::SendBuffer(MemoryResource* upstream) : upstream_(upstream) {}
 
 inline SendBuffer::~SendBuffer() { assert(pending_units_.empty()); }
 
 inline void SendBuffer::pushMessages(MsgVec&& msgs) {
     for (auto& msg : msgs) {
-        pending_units_.emplace_back(std::move(msg), get_upstream_());
+        pending_units_.emplace_back(std::move(msg), upstream_);
     }
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //           << "] SendBuffer::pushMessages finished" << std::endl;
 }
 
 inline void SendBuffer::pushMessage(MsgVec&& msg) {
-    pending_units_.emplace_back(std::move(msg), get_upstream_());
+    pending_units_.emplace_back(std::move(msg), upstream_);
 }
 
 inline void SendBuffer::pushMessage(MsgView&& msg) {
-    pending_units_.emplace_back(std::move(msg), get_upstream_());
+    pending_units_.emplace_back(std::move(msg), upstream_);
 }
 
 inline size_t SendBuffer::sendAllToFd(int fd) {
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //           << "] SendBuffer::sendAllToFd" << std::endl;
     size_t nwrite = 0;
     while (!pending_units_.empty()) {
         IoVecs iovs;
