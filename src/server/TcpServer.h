@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 
-#include "../base/Buffer/GlobalPool.h"
 #include "../base/ThreadPool.h"
 #include "../net/Connection/Acceptor.h"
 #include "../net/Connection/Connection.h"
@@ -22,7 +21,6 @@ struct TcpServerConfig {
     int nIOThreads = 4;
     int connection_timeout_second = 60;
     int loop_timer_interval = 60;
-    double memory_pool_size_gb = 3;
 };
 
 class TcpServer {

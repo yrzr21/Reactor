@@ -28,11 +28,32 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, stopServer);
     signal(SIGINT, stopServer);
 
+    EchoServerConfig config{
+        .tcp_server_config{
+            .ip = argv[1],
+            .port = atoi(argv[2]),
+            .backlog = atoi(argv[3]),
+            .nIOThreads = atoi(argv[4]),
+            .connection_timeout_second = atoi(argv[5]),
+            .loop_timer_interval = atoi(argv[6]),
+        },
+        .service_provider_config{
+            .io_chunk_size = 4096,
+            .work_options =
+                {
+                    .max_blocks_per_chunk = 40,
+                    .largest_required_pool_block = 1024,
+                },
+        },
+        .n_work_threads = atoi(argv[7]),
+        .echo_server_pool_options{
+            .max_blocks_per_chunk = 1000,
+            .largest_required_pool_block = 4096,
+        },
+    };
+
     // std::cout << "start" << std::endl;
-    // server = new EchoServer(argv[1], atoi(argv[2]), 128, 3, 3, 60, 10);
-    server =
-        new EchoServer(argv[1], atoi(argv[2]), atoi(argv[3]), atoi(argv[4]),
-                       atoi(argv[5]), atoi(argv[6]), atoi(argv[7]));
+    server = new EchoServer(config);
     server->start();
 
     return 0;

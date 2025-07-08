@@ -17,6 +17,7 @@ struct EchoServerConfig {
     TcpServerConfig tcp_server_config;
     ServiceProviderConfig service_provider_config;
     size_t n_work_threads;
+    PoolOptions echo_server_pool_options;
 };
 
 class EchoServer {
