@@ -128,11 +128,11 @@ inline size_t RecvBuffer::fillFromFd(int fd) {
     while (true) {
         int n = ::read(fd, pool_.data(), next_read_);
         if (n <= 0) {
-            // 被中断
-            if (n < 0 && errno == EINTR) continue;
+            if (n < 0 && errno == EINTR) continue;  // 被中断
             // 读取完毕，非阻塞 socket 上无数据可读
             if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
-            // 对端关闭或致命错误
+            if (n == 0) return 0;  // 对端关闭
+            // 致命错误
             std::cerr << "read() failed, errno=" << errno << std::endl;
             return -1;
         }
@@ -152,7 +152,7 @@ inline size_t RecvBuffer::fillFromFd(int fd) {
     return nread;
 }
 
-MsgVec RecvBuffer::popMessages() {
+inline MsgVec RecvBuffer::popMessages() {
     MsgVec ret;
     ret.swap(pending_msgs_);
     return ret;

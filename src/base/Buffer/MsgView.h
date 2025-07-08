@@ -41,17 +41,20 @@ inline MsgView::MsgView(const char* data, size_t size, SmartMonoPool* upstream)
 }
 
 inline MsgView::MsgView(std::pmr::string&& str) : size_(str.size()) {
+    // std::cout << "original data=" << str << std::endl;
     object_ = std::make_unique<std::pmr::string>(std::move(str));
     data_ = object_->data();
+    // std::cout << "msg view data=" << data_ << std::endl;
 }
 
 inline MsgView::~MsgView() { release(); }
 
 inline MsgView::MsgView(MsgView&& other) noexcept
-    : data_(other.data_),
-      size_(other.size_),
+    : size_(other.size_),
       upstream_(other.upstream_),
       object_(std::move(other.object_)) {
+    data_ = object_ ? object_->data() : other.data_;
+    // std::cout << "after move data=" << data_ << std::endl;
     other.upstream_ = nullptr;  // 防止重复释放
     other.data_ = nullptr;
 }
@@ -61,10 +64,11 @@ inline MsgView& MsgView::operator=(MsgView&& other) noexcept {
         // 释放旧的
         if (upstream_ || object_) release();
 
-        data_ = other.data_;
         size_ = other.size_;
         upstream_ = other.upstream_;
         object_ = std::move(other.object_);
+        data_ = object_ ? object_->data() : other.data_;
+        // std::cout << "after move data=" << data_ << std::endl;
 
         other.upstream_ = nullptr;
         other.data_ = nullptr;
