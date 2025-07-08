@@ -8,11 +8,13 @@
 #include "../../types.h"
 
 /*
-- 模拟monotonic_buffer_resource分配内存，但可用于未知大小对象分配，通过提供池内部指针的方式实现
+-
+模拟monotonic_buffer_resource分配内存，但可用于未知大小对象分配，通过提供池内部指针的方式实现
 - 基于引用计数，在合适时机可主动释放池
 
 内存分配方式：
-    1. allocate/deallocate：已知大小，自动修改计数并分配内存。deallocate 等价于减小引用计数
+    1. allocate/deallocate：已知大小，自动修改计数并分配内存。deallocate
+等价于减小引用计数
     2. data+consume+add_ref+deallocate：未知大小，自行管理计数与内存分配
 
 行为：
@@ -78,6 +80,12 @@ inline char* SmartMonoPool::base() { return base_; }
 inline char* SmartMonoPool::data() { return cur_; }
 
 inline void SmartMonoPool::consume(size_t bytes) {
+    // std::cout << "[tid=" << std::this_thread::get_id() << "] consume " << bytes
+    //           << " bytes"
+    //           << ", upstream=" << static_cast<void*>(upstream_)
+    //           << ", this=" << static_cast<void*>(this)
+    //           << ", pool=" << static_cast<void*>(base()) << std::endl;
+
     cur_ += bytes;
     assert(cur_ <= base() + total_size_);
 }
@@ -85,6 +93,13 @@ inline void SmartMonoPool::consume(size_t bytes) {
 inline void SmartMonoPool::add_ref() {
     // 仅要求原子性
     ref_cnt.fetch_add(1, std::memory_order_relaxed);
+
+    // size_t old = ref_cnt.fetch_add(1, std::memory_order_relaxed);
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //           << "] add, cur ref=" << old + 1
+    //           << ", upstream=" << static_cast<void*>(upstream_)
+    //           << ", this=" << static_cast<void*>(this)
+    //           << ", pool=" << static_cast<void*>(base()) << std::endl;
     // std::cout << "refcnt=" << ref_cnt << std::endl;
 }
 
@@ -126,7 +141,11 @@ inline void SmartMonoPool::release() {
                                           std::memory_order_acquire,
                                           std::memory_order_relaxed))
         return;  // released==true，直接返回
-
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //           << "] SmartMonoPool::release"
+    //           << ", upstream=" << static_cast<void*>(upstream_)
+    //           << ", this=" << static_cast<void*>(this)
+    //           << ", pool=" << static_cast<void*>(base()) << std::endl;
     upstream_->deallocate(base_, total_size_);
     base_ = nullptr;
 }
@@ -166,6 +185,11 @@ inline void SmartMonoPool::do_deallocate(void* p, size_t bytes,
                                          size_t alignment) {
     // 仅要求原子序
     size_t old_cnt = ref_cnt.fetch_sub(1, std::memory_order_relaxed);
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //           << "] do_deallocate, cur ref=" << old_cnt - 1
+    //           << ", upstream=" << static_cast<void*>(upstream_)
+    //           << ", this=" << static_cast<void*>(this)
+    //           << ", pool=" << static_cast<void*>(base()) << std::endl;
     // std::cout << "refcnt=" << ref_cnt << std::endl;
     assert(old_cnt != 0);
 

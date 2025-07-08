@@ -79,6 +79,8 @@ inline MonoRecyclePool::MonoRecyclePool(UpstreamProvider getter,
     : get_upstream_(std::move(getter)), chunk_size_(chunk_size) {
     assert(get_upstream_);
     assert(chunk_size_);
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //           << "] MonoRecyclePool Constructed" << std::endl;
 }
 
 inline MonoRecyclePool::~MonoRecyclePool() {
@@ -87,6 +89,8 @@ inline MonoRecyclePool::~MonoRecyclePool() {
 }
 
 inline void MonoRecyclePool::change_pool() {
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //           << "] MonoRecyclePool::change_pool" << std::endl;
     MsgPoolPtr old_pool = std::move(pool_);
     pool_ = new_pool();
 
@@ -95,6 +99,8 @@ inline void MonoRecyclePool::change_pool() {
 }
 
 inline void MonoRecyclePool::move_to_new_pool(char* data, size_t bytes) {
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //           << "] MonoRecyclePool::move_to_new_pool" << std::endl;
     if (data >= pool_->base() && data <= pool_->data()) {
         assert(data + bytes <= pool_->data());
     }
@@ -111,6 +117,11 @@ inline void MonoRecyclePool::move_to_new_pool(char* data, size_t bytes) {
 
 inline bool MonoRecyclePool::can_release() {
     recycle_pool();  // 由于懒回收，需要手动同步一下状态
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //           << "] can_release: ref=" << pool_->ref()
+    //           << ", empty=" << wait_release_pools_.empty()
+    //           << ", pool=" << static_cast<void*>(pool_->base())
+    //           << ", capacity=" << pool_->capacity() << std::endl;
     return wait_release_pools_.empty() && pool_->ref() == 0;
 }
 
@@ -136,7 +147,8 @@ inline void MonoRecyclePool::add_cur_ref() { pool_->add_ref(); }
 inline size_t MonoRecyclePool::ref() { return pool_->ref(); }
 
 inline MsgPoolPtr MonoRecyclePool::new_pool() {
-    // std::cout << "MonoRecyclePool::new_pool" << std::endl;
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //           << "] MonoRecyclePool::new_pool" << std::endl;
     recycle_pool();
 
     if (idle_pools_.empty()) {

@@ -45,6 +45,8 @@ inline MonoRecyclePool& ServiceProvider::getLocalMonoRecyclePool() {
     };
     static thread_local MonoRecyclePool local_pool_(getter,
                                                     config_.io_chunk_size);
+    // std::cout << "[tid=" << std::this_thread::get_id() << "] local mono pool = " << static_cast<void*>(&local_pool_)<<", base="
+    //         << static_cast<void*>(local_pool_.base()) << std::endl;
     return local_pool_;
 }
 

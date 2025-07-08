@@ -55,6 +55,7 @@ void TcpServer::removeConnection(int fd) {
     UniqueLock lock(*mutexes_[loopNo]);
 
     connection_maps_[loopNo].erase(fd);
+    subloops_[loopNo]->unregisterConnection(fd); // 不会有死锁问题
 }
 
 void TcpServer::start() {

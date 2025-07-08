@@ -54,6 +54,7 @@ class Eventloop {
 
     void controlChannel(int op, Channel* ch);
     void registerConnection(ConnectionPtr connnection);
+    void unregisterConnection(int fd);
 
     bool inIOThread();
 

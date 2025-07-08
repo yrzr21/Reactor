@@ -20,7 +20,7 @@ Connection::Connection(Eventloop *loop, SocketPtr clientSocket)
 }
 
 Connection::~Connection() {
-    // std::cout<<"fd "<<fd()<<" closed"<<std::endl;
+    // std::cout<<"~Connection：fd "<<fd()<<" closed"<<std::endl;
     output_buffer_->clearPendings();  // 没发完的就不发了
     //
 }
@@ -35,6 +35,7 @@ void Connection::initBuffer(RecvBufferConfig config) {
     auto upstream_getter = [] {
         return ServiceProvider::getLocalMonoRecyclePool().get_cur_resource();
     };
+    // std::cout << "initBuffer" << std::endl;
 
     input_buffer_.emplace(upstream_getter, config.chunk_size,
                           config.max_msg_size);

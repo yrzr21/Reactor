@@ -38,7 +38,10 @@ class SyncPool : public MemoryResource {
 inline SyncPool::SyncPool(MemoryResource* upstream, PoolOptions options)
     : pool_(options, upstream) {}
 
-inline SyncPool::~SyncPool() { assert(releasable()); }
+inline SyncPool::~SyncPool() {
+    assert(bytes_in_use_.load(std::memory_order_relaxed) == 0);
+    release(); // 析构时没设置release_也强制释放
+}
 
 inline void SyncPool::request_release_prev() {
     release_.store(true, std::memory_order_relaxed);

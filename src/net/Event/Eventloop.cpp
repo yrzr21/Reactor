@@ -99,6 +99,11 @@ void Eventloop::registerConnection(ConnectionPtr connnection) {
     connections_[connnection->fd()] = connnection;
 }
 
+void Eventloop::unregisterConnection(int fd) {
+    MutexGuard guard(connection_mtx_);
+    connections_.erase(fd);
+}
+
 // -- setter --
 void Eventloop::setTimerHandler(TimerHandler fn) { handle_timer_ = fn; }
 void Eventloop::setLoopTimeoutHandler(LoopTimeoutHandler fn) {

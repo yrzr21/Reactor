@@ -133,7 +133,8 @@ inline size_t RecvBuffer::fillFromFd(int fd) {
             if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
             if (n == 0) return 0;  // 对端关闭
             // 致命错误
-            std::cerr << "read() failed, errno=" << errno << std::endl;
+            std::cerr << "read() failed, errno=" << errno << ", n=" << n
+                      << std::endl;
             return -1;
         }
         pool_.consume(n);

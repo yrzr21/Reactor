@@ -35,7 +35,7 @@ size_t ThreadPool::size() { return thread_pool_.size(); }
 void ThreadPool::workerRoutine() {
     // log
     // printf("create %s thread(%ld).\n", threadType_.c_str(),
-    //        syscall(SYS_gettid));
+    //        std::this_thread::get_id());
 
     while (!is_stop_) {
         Task task;
