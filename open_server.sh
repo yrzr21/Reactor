@@ -1,0 +1,5 @@
+#!/bin/bash
+SERVER="./debug/Reactor"
+SERVER_ARGUMENT="192.168.58.128 5005 128 3 60 60 3"
+
+"$SERVER" $SERVER_ARGUMENT

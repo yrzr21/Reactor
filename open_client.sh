@@ -1,0 +1,4 @@
+#!/bin/bash
+CLIENT="./debug/basic_client"
+CLIENT_ARGUMENT="192.168.58.128 5005"
+"$CLIENT" $CLIENT_ARGUMENT

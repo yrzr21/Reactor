@@ -41,32 +41,6 @@ void Connection::initBuffer(RecvBufferConfig config) {
     output_buffer_.emplace(upstream_getter);
 }
 
-// 把写操作交给事件循环
-template <typename T>
-void Connection::postSend(T &&message, bool split = true) {
-    if (disconnected_ || !channel_->isRegistered()) return;
-
-    // 零拷贝推入缓冲区
-    using RawT = std::decay_t<T>;
-    if constexpr (std::is_same_v<RawT, MsgView>) {
-        output_buffer_->pushMessage(std::forward<T>(message));
-    } else if constexpr (std::is_same_v<RawT, MsgVec>) {
-        if (split)
-            output_buffer_->pushMessages(std::forward<T>(message));
-        else
-            output_buffer_->pushMessage(std::forward<T>(message));
-    } else {
-        static_assert(always_false<T>, "Unsupported message type");
-    }
-
-    // io线程注册写事件
-    if (loop_->inIOThread()) {
-        enableWrite();  // 0 工作线程
-    } else {
-        loop_->postTask([self = shared_from_this()]() { self->enableWrite(); });
-    }
-}
-
 // register write event
 void Connection::enableWrite() {
     if (disconnected_ || !channel_->isRegistered()) return;

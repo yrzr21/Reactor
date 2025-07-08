@@ -62,14 +62,20 @@ inline uint32_t Channel::events() { return events_; }
 inline uint32_t Channel::revents() { return revents_; }
 
 inline void Channel::onEvent() {
-    if (revents_ & EPOLLRDHUP)
+    // std::cout << "revents=" << revents_ << std::endl;
+    if (revents_ & EPOLLRDHUP) {
+        // std::cout << "handle_close_ event" << std::endl;
         handle_close_();
-    else if (revents_ & EPOLLIN)
+    } else if (revents_ & EPOLLIN) {
+        // std::cout << "handle_readable_ event" << std::endl;
         handle_readable_();
-    else if (revents_ & EPOLLOUT)
+    } else if (revents_ & EPOLLOUT) {
+        // std::cout << "handle_writable_ event" << std::endl;
         handle_writable_();
-    else
+    } else {
+        // std::cout << "handle_error_ event" << std::endl;
         handle_error_();
+    }
 }
 
 inline void Channel::setRevents(uint32_t revents) { revents_ = revents; }

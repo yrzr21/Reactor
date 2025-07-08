@@ -149,7 +149,7 @@ inline void SmartMonoPool::init(MemoryResource* upstream, size_t chunk_size) {
     is_using.store(true, std::memory_order_release);
 }
 
-void* SmartMonoPool::do_allocate(size_t bytes, size_t alignment) {
+inline void* SmartMonoPool::do_allocate(size_t bytes, size_t alignment) {
     // 如果进入if分支，那么if后的指令的提前执行都会作废，所以只保证原子性就行
     if (capacity() < bytes || !is_using.load(std::memory_order_relaxed)) {
         std::cout << "SmartMonoPool::do_allocate cannot allocate " << bytes

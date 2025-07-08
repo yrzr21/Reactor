@@ -82,27 +82,33 @@ void EchoServer::sendMessage(ConnectionPtr connection, MsgVec &&message) {
     // printf("onMessage runing on thread(%ld).\n", syscall(SYS_gettid));
     usleep(100);
     size_t nrecved = 0;
+    std::cout << "recv: ";
     for (size_t i = 0; i < message.size(); i++) {
         nrecved += message[i].size_;
+        std::cout << message[i].data_;
     }
+    std::cout << std::endl;
 
     // 构造多个报文发回去
-    auto &unsync_pool = ServiceProvider::getLocalUnsyncPool();
-    std::pmr::string msg{&unsync_pool};
-    msg += "received: ";
-    msg += std::to_string(nrecved);
-    msg += " bytes";
+    auto &sync_pool = ServiceProvider::getLocalSyncPool();
+    std::pmr::string msg{&sync_pool};
+    msg = "received: " + std::to_string(nrecved) + " bytes";
 
-    std::pmr::string msg2{msg, &unsync_pool};
+    std::pmr::string msg2{&sync_pool};
+    msg2 = "data = ";
+    for (size_t i = 0; i < message.size(); i++) {
+        msg2.append(message[i].data_, message[i].size_);
+    }
 
     MsgVec msgs;
-    msgs.emplace_back(std::move(ret));
-    msgs.emplace_back(std::move(ret2));
+    msgs.emplace_back(std::move(msg));
+    msgs.emplace_back(std::move(msg2));
+    // std::cout << "\nabout to send: " << std::endl;
+    // std::cout << msgs[0].data_ << std::endl;
+    // std::cout << msgs[1].data_ << std::endl;
 
     // std::cout << "sendMessage: fd=" << connection->fd() << ", msg=" << ret
     //           << ", size=" << ret.size() << std::endl;
     // sleep(2);
-    // printf("处理完业务后，将使用connecion对象。\n");
-    // printf("ret=%s\n",ret.c_str());
-    connection->postSend(std::move(ret));
+    connection->postSend(std::move(msgs));
 }
