@@ -49,7 +49,7 @@ inline MonoRecyclePool& ServiceProvider::getLocalMonoRecyclePool() {
 }
 
 inline SyncPool& ServiceProvider::getLocalSyncPool() {
-    static thread_local SyncPool local_pool_(config_.work_options,
-                                             config_.upstream);
+    static thread_local SyncPool local_pool_(config_.upstream,
+                                             config_.work_options);
     return local_pool_;
 }
