@@ -28,6 +28,8 @@
     2. 其余线程可修改引用计数，不应向此池申请内存
     3. 仅适用于一次性分配内存的线程，小心 string 的 SSO
     4. SmartMonoPool的持有者应保证SmartMonoPool的资源释放
+
+todo：申请的内存大小不支持高于 chunk_size_，可以支持一下
  */
 
 class SmartMonoPool : public MemoryResource {

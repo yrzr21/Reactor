@@ -7,6 +7,8 @@ EchoServer::EchoServer(EchoServerConfig &config)
       work_thread_pool_(config.n_work_threads, "work"),
       upstream_(config.echo_server_pool_options) {
     config.service_provider_config.upstream = &upstream_;
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //           << "] Root Upstream = " << &upstream_ << std::endl;
     service_provider_.emplace(config.service_provider_config);
 
     // set handler
@@ -42,7 +44,7 @@ void EchoServer::stop() {
 
 //  -- handler --
 void EchoServer::onNewConnection(ConnectionPtr connection) {
-    // std::cout << "New Connection: fd=" << connection->fd() << std::endl;
+    std::cout << "New Connection: fd=" << connection->fd() << std::endl;
     // printf("NewConnection:fd=%d,ip=%s,port=%d ok.\n", connection->fd(),
     //        connection->ip().c_str(), connection->port());
 }
@@ -56,10 +58,11 @@ void EchoServer::onMessage(ConnectionPtr connection, MsgVec &&message) {
         sendMessage(connection, std::move(message));
     } else {
         // 添加到工作线程。原shared_ptr计数+1，此前的级联调用中计数不变
-
+        // std::cout << "将在工作线程中调用sendMessage" << std::endl;
         // ptr 将来可能被继续移动，需要加 mutable
         work_thread_pool_.addTask([this, con_ptr = connection,
                                    msg_ptr = std::move(message)]() mutable {
+            // std::cout << "在工作线程中调用sendMessage" << std::endl;
             this->sendMessage(con_ptr, std::move(msg_ptr));
         });
     }
@@ -93,16 +96,22 @@ void EchoServer::sendMessage(ConnectionPtr connection, MsgVec &&message) {
     auto &sync_pool = ServiceProvider::getLocalSyncPool();
     std::pmr::string msg{&sync_pool};
     msg = "received: " + std::to_string(nrecved) + " bytes";
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //           << "] msg1 constructed" << std::endl;
 
     std::pmr::string msg2{&sync_pool};
     msg2 = "data = ";
     for (size_t i = 0; i < message.size(); i++) {
         msg2.append(message[i].data_, message[i].size_);
     }
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //       << "] msg2 constructed" << std::endl;
 
     MsgVec msgs;
     msgs.emplace_back(std::move(msg));
     msgs.emplace_back(std::move(msg2));
+    // std::cout << "[tid=" << std::this_thread::get_id()
+    //       << "] msg vec constructed" << std::endl;
     // std::cout << "\nabout to send: " << std::endl;
     // std::cout << msgs[0].data_ << std::endl;
     // std::cout << msgs[1].data_ << std::endl;

@@ -8,51 +8,32 @@
 #include "./SmartMonoPool.h"
 
 /*
-封装 SmartMonoPool，注意，它不继承自memory_resource
+- 用于管理SmartMonoPool的类，在SmartMonoPool内存不足时需手动切换新池，
+旧池释放后自动进行回收
+- 适用于一次性、单线程内存分配的情形，禁止用于多次、多线程内存分配
+- 支持动态上游池，析构时检查wait池是否释放，并尝试释放当前池
 
-适用于大块内存一次性分配，不支持多次分配
-适用于pmr体系，用户需明确使用内存所属的池释放内存，使用流程：
-    1. get_cur_resource 获取当前池指针 p
-    2. 分配内存
-    3. p->deallocate
+使用方式：
+    1. get_cur_resource 获取当前SmartMonoPool，需自行保证分配的内存不超过池上限
+    2. move_to_new_pool/change_pool 换池子
+    3. can_release 判断当前管理的所有 SmartMonoPool 是否可全部释放
 
-分配内存的方式有两种：
-    1. allocate 自动分配内存、换池
-    2. 自行使用 data+consume+add_ref & change_pool+capacity 管理池内存分配与换池
-前者适用于已知要申请的内存大小，后者适用于
-
-todo：申请的内存大小不支持高于 chunk_size_，可以支持一下
-
-仅支持单线程，用于高效分配内存并释放
-多线程可能需要：锁+一个封装了allocate和get_cur_resource的池子
-不过未来不太可能支持多线程
-
-应被上级RAII管理，即所有资源引用计数应为0 再析构
-
+todo：支持多线程内存分配
  */
-class MonoRecyclePool {
+class SmartMonoManager {
    public:
-    MonoRecyclePool(UpstreamProvider getter, size_t chunk_size);
-    ~MonoRecyclePool();
+    SmartMonoManager(UpstreamProvider getter, size_t chunk_size);
+    ~SmartMonoManager();
 
     // 单纯换池子，不做复制
-    void change_pool();
+    SmartMonoPool* change_pool();
     // 用该数据初始化新池子，可基于旧池子的数据
     // 若有不完整未分配数据在旧池子，用户应主动更新
-    void move_to_new_pool(char* data, size_t bytes);
+    SmartMonoPool* move_to_new_pool(char* data, size_t bytes);
     bool can_release();
     SmartMonoPool* get_cur_resource();
 
-    // 以下操作调用当前pool的接口
-    void* allocate(size_t bytes);
-
-    size_t capacity();
-    char* base();
-    char* data();
-    void consume(size_t bytes);
-
-    void add_cur_ref();  // 资源对池的ref
-    size_t ref();
+    size_t capacity();  // 针对当前SmartMonoPool
 
    private:
     // 懒惰回收 wait pool，在new_pool中回收
@@ -74,33 +55,36 @@ class MonoRecyclePool {
     MsgPoolPtr pool_ = new_pool();
 };
 
-inline MonoRecyclePool::MonoRecyclePool(UpstreamProvider getter,
-                                        size_t chunk_size)
+inline SmartMonoManager::SmartMonoManager(UpstreamProvider getter,
+                                          size_t chunk_size)
     : get_upstream_(std::move(getter)), chunk_size_(chunk_size) {
     assert(get_upstream_);
     assert(chunk_size_);
     // std::cout << "[tid=" << std::this_thread::get_id()
-    //           << "] MonoRecyclePool Constructed" << std::endl;
+    //           << "] SmartMonoManager Constructed" << std::endl;
 }
 
-inline MonoRecyclePool::~MonoRecyclePool() {
+inline SmartMonoManager::~SmartMonoManager() {
     assert(can_release());
     if (!pool_->is_released()) pool_->release();
 }
 
-inline void MonoRecyclePool::change_pool() {
+inline SmartMonoPool* SmartMonoManager::change_pool() {
     // std::cout << "[tid=" << std::this_thread::get_id()
-    //           << "] MonoRecyclePool::change_pool" << std::endl;
+    //           << "] SmartMonoManager::change_pool" << std::endl;
     MsgPoolPtr old_pool = std::move(pool_);
     pool_ = new_pool();
 
     old_pool->set_unused();
     wait_release_pools_.push_back(std::move(old_pool));
+
+    return get_cur_resource();
 }
 
-inline void MonoRecyclePool::move_to_new_pool(char* data, size_t bytes) {
+inline SmartMonoPool* SmartMonoManager::move_to_new_pool(char* data,
+                                                         size_t bytes) {
     // std::cout << "[tid=" << std::this_thread::get_id()
-    //           << "] MonoRecyclePool::move_to_new_pool" << std::endl;
+    //           << "] SmartMonoManager::move_to_new_pool" << std::endl;
     if (data >= pool_->base() && data <= pool_->data()) {
         assert(data + bytes <= pool_->data());
     }
@@ -113,9 +97,11 @@ inline void MonoRecyclePool::move_to_new_pool(char* data, size_t bytes) {
 
     old_pool->set_unused();
     wait_release_pools_.push_back(std::move(old_pool));
+
+    return get_cur_resource();
 }
 
-inline bool MonoRecyclePool::can_release() {
+inline bool SmartMonoManager::can_release() {
     recycle_pool();  // 由于懒回收，需要手动同步一下状态
     // std::cout << "[tid=" << std::this_thread::get_id()
     //           << "] can_release: ref=" << pool_->ref()
@@ -125,30 +111,15 @@ inline bool MonoRecyclePool::can_release() {
     return wait_release_pools_.empty() && pool_->ref() == 0;
 }
 
-inline SmartMonoPool* MonoRecyclePool::get_cur_resource() {
+inline SmartMonoPool* SmartMonoManager::get_cur_resource() {
     return pool_.get();
 }
 
-inline void* MonoRecyclePool::allocate(size_t bytes) {
-    if (pool_->capacity() < bytes) change_pool();
-    return pool_->allocate(bytes);
-}
+inline size_t SmartMonoManager::capacity() { return pool_->capacity(); }
 
-inline size_t MonoRecyclePool::capacity() { return pool_->capacity(); }
-
-inline char* MonoRecyclePool::base() { return pool_->base(); }
-
-inline char* MonoRecyclePool::data() { return pool_->data(); }
-
-inline void MonoRecyclePool::consume(size_t bytes) { pool_->consume(bytes); }
-
-inline void MonoRecyclePool::add_cur_ref() { pool_->add_ref(); }
-
-inline size_t MonoRecyclePool::ref() { return pool_->ref(); }
-
-inline MsgPoolPtr MonoRecyclePool::new_pool() {
+inline MsgPoolPtr SmartMonoManager::new_pool() {
     // std::cout << "[tid=" << std::this_thread::get_id()
-    //           << "] MonoRecyclePool::new_pool" << std::endl;
+    //           << "] SmartMonoManager::new_pool" << std::endl;
     recycle_pool();
 
     if (idle_pools_.empty()) {
@@ -166,8 +137,8 @@ inline MsgPoolPtr MonoRecyclePool::new_pool() {
     return ret;
 }
 
-inline void MonoRecyclePool::recycle_pool() {
-    // std::cout << "MonoRecyclePool::recycle_pool" << std::endl;
+inline void SmartMonoManager::recycle_pool() {
+    // std::cout << "SmartMonoManager::recycle_pool" << std::endl;
     while (!wait_release_pools_.empty()) {
         if (!wait_release_pools_.front()->is_released()) break;
 
