@@ -1,131 +1,61 @@
-## 特点
-- 线程池
-- reactor 模式
-	- 事件循环运行在线程池，生产-消费者模型
-	- 其中工作线程由 echoserver 持有，io线程由tcpserver持有
-	- channel 作为 net 和 event 的桥梁
-- 回调解耦
-- 支持自动解析、添加4B报文头的 ring_buffer 应用层缓冲区
-- 智能指针管理生命周期，lambda，std::function
-- 如何异步唤醒事件循环处理异步io任务、如何定时清理空闲连接
-- 使用了 move_only_function 优化
-## 可调用对象
-#### std::bind 与 lambda
-后者更清晰、易读、高性能
-#### 目标函数必须可拷贝
-- 例如**捕获了 unique_ptr 的 lambda** 就不行，因为那会导致lambda自身也变为仅移动
-## 生命周期管理
-#### RAII
-- 资源获取即初始化
-- 本项目中即：Socket、Epoll、TcpServer
-#### shared_from_this
-- 若一个类要传递他自己的智能指针出去，需要：
-	1. 继承 enable_shared_from_this 
-	2. 通过 shared_from_this() 传递智能指针
-- 本项目中即：Connection
-#### shared_ptr 和 unique_ptr
-- 前者开销不小，能用后者就用后者
-- 而为了异步传递 msg，并用 unique_ptr 管理，引出 C++23 move_only_function
-#### Buffer 拷贝次数
-- 报文有2/3次拷贝：
-	1. 网卡->内存中的内核缓冲区(可并行)
-	2. 内核缓冲区->用户缓冲区
-	3. 用户缓冲区->上层处理
--  为何不用 `string_view` 优化拷贝次数
-	- 1的优化即DMA，2 的优化即 proactor 模式
-	- 由于无法保证用户 ring_buffer 缓冲区中的数据在被处理前不被覆盖，因此无法使用 string_view，3不可优化
 
-## ring_buffer
->拷贝次数优化见上文
-- 实现方式：环形缓冲区+读写指针分离
-#### why ring_buffer？
-- 理想情况下，不需要多余内存申请
-- 无内存碎片
-- 缓存友好
+基于 `epoll` 的 C++17 高性能异步响应框架，支持主从 Reactor 模型、应用层零拷贝、高效内存复用、连接管理与线程池
 
-#### 扩容机制
-- 当数据量超过容器大小，需要扩容
-- 仅拷贝未处理数据到新容器开头
+>使用了个别C++23特性，整体仍以C++17为主
+### 特性
+- **主从 Reactor +工作线程**：分别用于监听新连接、io、业务计算
+- **回调机制**：采用 Channel → Connection -> TcpServer -> EchoServer 级联回调
+- **std::pmr + writev 零拷贝**：设计思路见 [README/应用层IO零拷贝.md]
+- **定时连接清理 & 异步唤醒机制**：基于 `timerfd` / `eventfd`
+- **RAII + 智能指针管理资源**
+### 主要模块说明
+#### 服务器
+| 模块         | 简介                            |
+| ---------- | ----------------------------- |
+| Channel    | 封装可读/可写/关闭/错误事件，统一事件回调        |
+| EventLoop  | 事件循环，负责执行回调                   |
+| TcpServer  | 管理连接创建、分发、回收，可继续回调业务层         |
+| ThreadPool | 线程池，执行业务任务/运行事件循环             |
+| SendBuffer | 支持 writev 写入 + 零拷贝传输          |
+| Connection | 抽象一个 TCP 连接，负责读写与生命周期管理       |
+| Acceptor   | 主Reactor，负责监听新连接并回调 TcpServer |
+#### 缓冲区
+| 模块               | 简介                                             |
+| ---------------- | ---------------------------------------------- |
+| ServiceProvider  | 全局服务点，为线程提供私有内存池                               |
+| SmartMonoPool    | 支持单线程一次性分配、多线程自动释放的无锁固定大小的内存池                  |
+| SmartMonoManager | 用于管理SmartMonoPool，通过接口切换新SmartMonoPool，并等待旧的释放 |
+| SyncPool         | 适用于已知大小、多线程、同一对象多次进行的内存分配                      |
+| MsgView          | 对缓冲区的视图层，由指针+大小构成，析构时自动释放；另外也支持从pmr::string 构造 |
+| RecvBuffer       | 接收报文的缓冲区，自动处理半包、粘包、包过大的问题，自动换新池                |
+| SendUnit         | 用于封装多个MsgView构成的一个发送单元，在发送完毕时统一释放              |
+| SendBuffer       | 从SendUnit构建iov，并调用writev发送报文，然后更新发送状态          |
+### 编译 & 运行
+- 要求gcc 13.2.0以上，用于支持C++23 `move_only_function`
 
-#### 4B 报文头
-- 提供接口：popMessage、pushMessage，传递完整报文并自动补全/解析报文头
-- 解决TCP半包/粘包/分包问题
-
-## 多线程竞争
-- 一个连接运行在一个事件循环中，所以不需要加锁
-
-
-
-## 性能测试
-#### 测试参数
-- 报文：4B长度报文头+40B请求消息
-- 客户端并发线程数：30
-- 服务端配置：IO线程数：30，工作线程数：20
-- 模拟业务耗时：`usleep(100)`
-#### 测试环境（虚拟机）
-- 宿主机 CPU：Intel i5-12500H
-- 虚拟机：4核+4.8G内存，VMware 虚拟机，Ubuntu 22.04
-#### 测试结果
-
-| 指标   | 数值             |
-| ---- | -------------- |
-| 总请求数 | 30 * 1000000   |
-| 总耗时  | 60 秒           |
-| 吞吐率  | **38.33 MB/s** |
-| 请求速率 | **502341 QPS** |
-
-
-## 其他问题
-#### 命名规范
-- 成员变量：小写+下划线
-- 成员函数：小驼峰
-- 类类型：大驼峰
-#### 回调函数命名
-- 函数的“**被动**”或“**主动**”属性，取决于当前类的**角色与立场**，而不取决于函数本身
-- 可以据此命名
-	- on：被动
-	- handle：主动
-#### 别名
-- 多用 using，减少认知负担
-- 但要注意直观性，不能掩盖原类型本质
-#### 减少函数
-- 如果几个函数仅仅只是对同一函数的不同参数的封装，那可合并为一个
-#### 是否裸使用宏
-- 可封装为更易读的类，且是零开销抽象
-- 但是为了兼容需要写更多的代码，带来更多的负担，其收益小于成本...所以还是算了吧
-![](assets/Pasted%20image%2020250617134752.png)
-![](assets/Pasted%20image%2020250617134804.png)
-
-#### core dump
-- 找到出事的pid
-```undefined
-coredumpctl info
-```
-- 进入调试
+- 克隆并编译：
 ```bash
-coredumpctl debug pid
+git clone https://github.com/yrzr21/Reactor.git
+cd Reactor
+mkdir build && cd build
+cmake ..
+make -j
+cd ..
 ```
-- gdb 中
+
+- 修改运行脚本的参数，然后运行：
 ```bash
-bt
-info locals
+chmod +x open_server.sh 
+./open_server.sh 
 ```
-
-#### 实用工具
-- 代码行数统计：
-```swift
-cloc /path/to/your/project
-```
-
-
-- `cppcheck`：分析代码潜在问题以及复杂度
+- 另开一个终端，修改参数，然后运行从命令行输入数据的客户端：
 ```bash
-cppcheck --enable=style,performance,unusedFunction --inline-suppr /path/to/project 2>&1 | tee cppcheck_report.txt
-
+chmod +x open_client.sh 
+./open_client.sh 
 ```
 
-
-
-
-#### gcc-11
-- gcc-11 不支持C++23，需要升级
+### todo
+- [ ] 添加性能测试脚本
+- [ ] 使用协程构建服务器
+- [ ] 使用 pmr 管理所有容器的内存、
+- [ ] 添加守护类，托管断开连接的资源

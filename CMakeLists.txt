@@ -67,9 +67,9 @@ add_executable(test_smart_mono_pool
     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_smart_mono_pool.cpp
 )
 
-add_executable(test_mono_recycle_pool
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_mono_recycle_pool.cpp
-)
+# add_executable(test_mono_recycle_pool
+#     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_mono_recycle_pool.cpp
+# )
 
 add_executable(test_recv_buffer
     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_recv_buffer.cpp
@@ -82,29 +82,4 @@ add_executable(test_sync_pool
 # add_executable(test_local_mono_recycle_pool
 #     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/ServiceProvider/test_local_mono_recycle_pool.cpp
 #     ${CMAKE_CURRENT_SOURCE_DIR}/src/base/ThreadPool.cpp
-# )
-
-
-
-set(TARGET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/debug)
-
-add_custom_command(TARGET Reactor POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-    $<TARGET_FILE:Reactor>
-    ${TARGET_DIR}/$<TARGET_FILE_NAME:Reactor>
-    COMMENT "Copy Reactor executable to ${TARGET_DIR}"
-)
-
-add_custom_command(TARGET basic_client POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-    $<TARGET_FILE:basic_client>
-    ${TARGET_DIR}/$<TARGET_FILE_NAME:basic_client>
-    COMMENT "Copy basic_client executable to ${TARGET_DIR}"
-)
-
-# add_custom_command(TARGET test_max_concurrent_client POST_BUILD
-#     COMMAND ${CMAKE_COMMAND} -E copy
-#     $<TARGET_FILE:test_max_concurrent_client>
-#     ${TARGET_DIR}/$<TARGET_FILE_NAME:test_max_concurrent_client>
-#     COMMENT "Copy test_max_concurrent_client executable to ${TARGET_DIR}"
 # )
