@@ -5,7 +5,7 @@
 ### 特性
 - **主从 Reactor +工作线程**：分别用于监听新连接、io、业务计算
 - **回调机制**：采用 Channel → Connection -> TcpServer -> EchoServer 级联回调
-- **std::pmr + writev 零拷贝**：设计思路见 [README/应用层IO零拷贝.md]
+- **std::pmr + writev 零拷贝**：设计思路见 [README/应用层IO零拷贝.md](README/应用层IO零拷贝.md)
 - **定时连接清理 & 异步唤醒机制**：基于 `timerfd` / `eventfd`
 - **RAII + 智能指针管理资源**
 ### 主要模块说明
