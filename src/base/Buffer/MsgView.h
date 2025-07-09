@@ -28,9 +28,10 @@ class MsgView {
     void release();
 
    private:
-    // 两套管理体系
+    // 接收缓冲区->业务层
     SmartMonoPool* upstream_ = nullptr;
 
+    // 接收缓冲区<-业务层
     // 仅在 std::pmr::string 场景下使用，用于自动释放
     std::unique_ptr<std::pmr::string> object_;
 };
