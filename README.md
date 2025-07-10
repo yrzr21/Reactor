@@ -16,7 +16,6 @@
 | EventLoop  | 事件循环，负责执行回调                   |
 | TcpServer  | 管理连接创建、分发、回收，可继续回调业务层         |
 | ThreadPool | 线程池，执行业务任务/运行事件循环             |
-| SendBuffer | 支持 writev 写入 + 零拷贝传输          |
 | Connection | 抽象一个 TCP 连接，负责读写与生命周期管理       |
 | Acceptor   | 主Reactor，负责监听新连接并回调 TcpServer |
 #### 缓冲区
