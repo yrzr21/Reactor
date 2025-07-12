@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(Reactor LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O2")
 
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
@@ -81,6 +81,10 @@ add_executable(test_recv_buffer
 
 add_executable(test_sync_pool
     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/Buffer/test_sync_pool.cpp
+)
+
+add_executable(performance_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/PerformanceTest/performance_test.cpp
 )
 
 # add_executable(test_local_mono_recycle_pool

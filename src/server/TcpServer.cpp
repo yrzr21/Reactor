@@ -75,7 +75,6 @@ void TcpServer::stop() {
 
     io_thread_pool_.stopAll();
     LOG_INFO("I/O线程已停止");
-    Logger::getConsoleLogger()->info("IO线程已停止");
 }
 
 // -- Acceptor hanler --

@@ -53,6 +53,7 @@ void EchoServer::stop() {
     // tcpServer_.stop();
     // 作为成员自动析构
     // LOG_INFO("tcpServer 已停止");
+    Logger::shutdown();
 }
 
 //  -- handler --
@@ -103,33 +104,19 @@ void EchoServer::onLoopTimeout(Eventloop *loop) {
 // using MessagePtr = std::unique_ptr<std::string>;
 void EchoServer::sendMessage(ConnectionPtr connection, MsgVec &&message) {
     // printf("onMessage runing on thread(%ld).\n", syscall(SYS_gettid));
-    usleep(100);
+    // usleep(100);
     size_t nrecved = 0;
     // std::cout << "recv: ";
-    for (size_t i = 0; i < message.size(); i++) {
-        nrecved += message[i].size_;
-        std::cout << message[i].data_;
-    }
-    // std::cout << std::endl;
 
-    // 构造多个报文发回去
+    // echo 回去
     auto &sync_pool = ServiceProvider::getLocalSyncPool();
     std::pmr::string msg{&sync_pool};
-    msg = "received: " + std::to_string(nrecved) + " bytes";
-    // std::cout << "[tid=" << std::this_thread::get_id()
-    //           << "] msg1 constructed" << std::endl;
-
-    std::pmr::string msg2{&sync_pool};
-    msg2 = "data = ";
     for (size_t i = 0; i < message.size(); i++) {
-        msg2.append(message[i].data_, message[i].size_);
+        msg.append(message[i].data_, message[i].size_);
     }
-    // std::cout << "[tid=" << std::this_thread::get_id()
-    //       << "] msg2 constructed" << std::endl;
 
     MsgVec msgs;
     msgs.emplace_back(std::move(msg));
-    msgs.emplace_back(std::move(msg2));
     // std::cout << "[tid=" << std::this_thread::get_id()
     //       << "] msg vec constructed" << std::endl;
     // std::cout << "\nabout to send: " << std::endl;

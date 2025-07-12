@@ -13,6 +13,7 @@
 class Logger {
    public:
     static void init();
+    static void shutdown();
 
     static std::shared_ptr<spdlog::logger>& getConsoleLogger();
     static std::shared_ptr<spdlog::logger>& getFileLogger();
@@ -35,6 +36,8 @@ inline void Logger::init() {
         fileLogger->set_level(spdlog::level::info);
     }
 }
+
+inline void Logger::shutdown() { spdlog::shutdown(); }
 
 inline std::shared_ptr<spdlog::logger>& Logger::getConsoleLogger() {
     return consoleLogger;
