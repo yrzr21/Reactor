@@ -105,18 +105,20 @@ void EchoServer::onLoopTimeout(Eventloop *loop) {
 void EchoServer::sendMessage(ConnectionPtr connection, MsgVec &&message) {
     // printf("onMessage runing on thread(%ld).\n", syscall(SYS_gettid));
     // usleep(100);
-    size_t nrecved = 0;
+    // size_t nrecved = 0;
     // std::cout << "recv: ";
 
-    // echo 回去
-    auto &sync_pool = ServiceProvider::getLocalSyncPool();
-    std::pmr::string msg{&sync_pool};
-    for (size_t i = 0; i < message.size(); i++) {
-        msg.append(message[i].data_, message[i].size_);
-    }
+    // auto &sync_pool = ServiceProvider::getLocalSyncPool();
+    // std::pmr::string msg{&sync_pool};
+    // for (size_t i = 0; i < message.size(); i++) {
+    //     nrecved += message[i].size_;
+        // msg.append(message[i].data_, message[i].size_);
+    // }
+    // msg.append(std::to_string(nrecved));
+    // msg.resize(32);
 
-    MsgVec msgs;
-    msgs.emplace_back(std::move(msg));
+    // MsgVec msgs;
+    // msgs.emplace_back(std::move(msg));
     // std::cout << "[tid=" << std::this_thread::get_id()
     //       << "] msg vec constructed" << std::endl;
     // std::cout << "\nabout to send: " << std::endl;
@@ -126,5 +128,6 @@ void EchoServer::sendMessage(ConnectionPtr connection, MsgVec &&message) {
     // std::cout << "sendMessage: fd=" << connection->fd() << ", msg=" << ret
     //           << ", size=" << ret.size() << std::endl;
     // sleep(2);
-    connection->postSend(std::move(msgs));
+    // connection->postSend(std::move(msgs));
+    connection->postSend(std::move(message));
 }

@@ -32,7 +32,7 @@ inline void Logger::init() {
     }
 
     if (!fileLogger) {
-        fileLogger = spdlog::basic_logger_mt("file", "server.log");
+        fileLogger = spdlog::basic_logger_mt("file", "output/server.log");
         fileLogger->set_level(spdlog::level::info);
     }
 }
