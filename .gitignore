@@ -6,3 +6,4 @@ test1.cpp
 .gitignore
 test/output
 test/ignore
+server.log

@@ -6,6 +6,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+find_package(spdlog REQUIRED)
+
+
 
 # ------------------------------------------------------------------------------
 # server main
@@ -23,6 +26,7 @@ file(GLOB_RECURSE SOURCES ${SRC_DIR}/*.cpp)
 
 
 add_executable(Reactor ${SOURCES})
+target_link_libraries(Reactor PRIVATE spdlog::spdlog)
 
 
 

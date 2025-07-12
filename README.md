@@ -1,5 +1,5 @@
 
-基于 `epoll` 的 C++17 高性能异步响应框架，支持主从 Reactor 模型、应用层零拷贝、高效内存复用、连接管理与线程池
+基于 `epoll` 的 C++17 异步响应框架，实现了主从 Reactor 模型、应用层零拷贝、高效内存复用、连接管理与线程池
 
 >使用了个别C++23特性，整体仍以C++17为主
 ### 特性
@@ -22,18 +22,19 @@
 | 模块               | 简介                                             |
 | ---------------- | ---------------------------------------------- |
 | ServiceProvider  | 全局服务点，为线程提供私有内存池                               |
-| SmartMonoPool    | 支持单线程一次性分配、多线程自动释放的无锁固定大小的内存池                  |
+| SmartMonoPool    | 单线程一次性分配、多线程自动释放的无锁固定大小的内存池                    |
 | SmartMonoManager | 用于管理SmartMonoPool，通过接口切换新SmartMonoPool，并等待旧的释放 |
 | SyncPool         | 适用于已知大小、多线程、同一对象多次进行的内存分配                      |
-| MsgView          | 对缓冲区的视图层，由指针+大小构成，析构时自动释放；另外也支持从pmr::string 构造 |
+| MsgView          | 对缓冲区的视图层，由指针+大小构成，析构时自动释放；另外也可从pmr::string 构造  |
 | RecvBuffer       | 接收报文的缓冲区，自动处理半包、粘包、包过大的问题，自动换新池                |
 | SendUnit         | 用于封装多个MsgView构成的一个发送单元，在发送完毕时统一释放              |
 | SendBuffer       | 从SendUnit构建iov，并调用writev发送报文，然后更新发送状态          |
 ### 编译 & 运行
 - 要求gcc 13.2.0以上，用于支持C++23 `move_only_function`
 
-- 克隆并编译：
+- 克隆、编译、安装必要库：
 ```bash
+sudo apt install libspdlog-dev
 git clone https://github.com/yrzr21/Reactor.git
 cd Reactor
 mkdir build && cd build
