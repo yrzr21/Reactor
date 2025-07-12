@@ -2,10 +2,18 @@
 
 #include <string>
 
+#include "EchoServer.h"
+
+std::atomic<int> connection_count = 0;
+std::atomic<int> packet_count = 0;
+
 EchoServer::EchoServer(EchoServerConfig &config)
     : tcpServer_(config.tcp_server_config),
       work_thread_pool_(config.n_work_threads, "work"),
       upstream_(config.echo_server_pool_options) {
+    Logger::init();
+    LOG_INFO("Logger init success");
+
     config.service_provider_config.upstream = &upstream_;
     // std::cout << "[tid=" << std::this_thread::get_id()
     //           << "] Root Upstream = " << &upstream_ << std::endl;
@@ -31,28 +39,39 @@ EchoServer::EchoServer(EchoServerConfig &config)
         [this](Eventloop *loop) { this->onLoopTimeout(loop); });
 }
 
-void EchoServer::start() { tcpServer_.start(); }
+EchoServer::~EchoServer() { stop(); }
+
+void EchoServer::start() {
+    LOG_INFO("Start EchoServer");
+    tcpServer_.start();
+}
 
 void EchoServer::stop() {
     work_thread_pool_.stopAll();
-    printf("工作线程已停止\n");
-    // sleep(1000);
-    tcpServer_.stop();
-    printf("tcpServer 已停止\n");
-    // sleep(1000);
+    LOG_INFO("工作线程已停止");
+
+    // tcpServer_.stop();
+    // 作为成员自动析构
+    // LOG_INFO("tcpServer 已停止");
 }
 
 //  -- handler --
 void EchoServer::onNewConnection(ConnectionPtr connection) {
-    std::cout << "New Connection: fd=" << connection->fd() << std::endl;
-    // printf("NewConnection:fd=%d,ip=%s,port=%d ok.\n", connection->fd(),
-    //        connection->ip().c_str(), connection->port());
+    connection_count++;
+    if (connection_count % 100 == 0) {
+        LOG_INFO("Got {} Connections", connection_count);
+    }
+    // LOG_INFO("New Connection: fd={}", connection->fd());
 }
 void EchoServer::onMessage(ConnectionPtr connection, MsgVec &&message) {
     // std::cout << "onMessage: fd=" << connection->fd()
     //           << "msg=" << message->c_str() << std::endl;
     // printf("%ld HandleOnMessage: recv(eventfd=%d):%s\n", syscall(SYS_gettid),
     // connection->fd(), message.c_str());
+    packet_count++;
+    if (packet_count % 10000 == 0) {
+        LOG_INFO("Handled {} packets", packet_count);
+    }
 
     if (work_thread_pool_.size() == 0) {
         sendMessage(connection, std::move(message));
@@ -71,10 +90,11 @@ void EchoServer::onSendComplete(ConnectionPtr connection) {
     // printf("send complete\n");
 }
 void EchoServer::onConnectionClose(ConnectionPtr connection) {
-    // printf("client(eventfd=%d) disconnected.\n", connection->fd());
+    connection_count--;
 }
 void EchoServer::onConnectionError(ConnectionPtr connection) {
-    // printf("client(eventfd=%d) error.\n", connection->fd());
+    connection_count--;
+    LOG_ERR("client error, fd = {}", connection->fd());
 }
 void EchoServer::onLoopTimeout(Eventloop *loop) {
     // printf("loop time out\n");
@@ -85,12 +105,12 @@ void EchoServer::sendMessage(ConnectionPtr connection, MsgVec &&message) {
     // printf("onMessage runing on thread(%ld).\n", syscall(SYS_gettid));
     usleep(100);
     size_t nrecved = 0;
-    std::cout << "recv: ";
+    // std::cout << "recv: ";
     for (size_t i = 0; i < message.size(); i++) {
         nrecved += message[i].size_;
         std::cout << message[i].data_;
     }
-    std::cout << std::endl;
+    // std::cout << std::endl;
 
     // 构造多个报文发回去
     auto &sync_pool = ServiceProvider::getLocalSyncPool();

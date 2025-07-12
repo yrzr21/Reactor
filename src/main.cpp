@@ -7,11 +7,12 @@
 EchoServer *server;
 
 void stopServer(int sig) {
-    printf("sig=%d\n", sig);
-    server->stop();
-    printf("server已停止。\n");
+    Logger::getConsoleLogger()->info("sig = {}", sig);
+    Logger::getConsoleLogger()->info("Stopping...");
+
     delete server;
-    printf("delete server\n");
+    LOG_INFO("server已停止");
+
     exit(0);
 }
 

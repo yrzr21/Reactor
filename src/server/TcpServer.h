@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "../base/Logger.h"
 #include "../base/ThreadPool.h"
 #include "../net/Connection/Acceptor.h"
 #include "../net/Connection/Connection.h"
@@ -51,7 +52,7 @@ class TcpServer {
 
    public:
     // 初始化监听的 socket，初始化 servChannel
-    TcpServer(const TcpServerConfig& config);
+    TcpServer(const TcpServerConfig &config);
     // TcpServer(const std::string &ip, uint16_t port, int nListen,
     //           int nSubthreads, int maxGap, int heartCycle);
     ~TcpServer();

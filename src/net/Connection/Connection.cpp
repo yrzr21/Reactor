@@ -33,8 +33,8 @@ void Connection::enable() {
 
 void Connection::initBuffer(RecvBufferConfig config) {
     auto upstream_getter = [] {
-        std::cout << "[tid=" << std::this_thread::get_id()
-                  << "] getLocalMonoRecyclePool()" << std::endl;
+        // std::cout << "[tid=" << std::this_thread::get_id()
+        //           << "] getLocalMonoRecyclePool()" << std::endl;
         return ServiceProvider::getLocalMonoRecyclePool().get_cur_resource();
     };
     // std::cout << "initBuffer" << std::endl;

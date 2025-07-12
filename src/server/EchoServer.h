@@ -5,6 +5,7 @@
 
 #include <string>
 
+#include "../base/Logger.h"
 #include "../base/ServiceProvider.h"
 #include "../base/ThreadPool.h"
 #include "../types.h"
@@ -22,9 +23,9 @@ struct EchoServerConfig {
 
 class EchoServer {
    private:
+    SynchronizedPool upstream_;  // 从下往上析构
     TcpServer tcpServer_;
     ThreadPool work_thread_pool_;
-    SynchronizedPool upstream_;  // 用于业务层数据分配 msg view
     std::optional<ServiceProvider> service_provider_;
 
    public:
@@ -32,7 +33,7 @@ class EchoServer {
     // EchoServer(const std::string &ip, uint16_t port, int nListen,
     //            int nSubthreads, int nWorkThreads, int maxGap, int
     //            heartCycle);
-    ~EchoServer() = default;
+    ~EchoServer();
 
     void start();
     void stop();

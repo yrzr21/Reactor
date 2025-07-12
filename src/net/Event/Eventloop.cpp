@@ -62,7 +62,7 @@ void Eventloop::onTimer() {
     // printf("onTimer\n");
     if (is_mainloop_) return;
 
-    std::cout << "onTimer" << std::endl;
+    // std::cout << "onTimer" << std::endl;
     // printf("%ld Eventloop::handleTimeout()：fd  ", syscall(SYS_gettid));
 
     timer_.drain();
@@ -76,6 +76,7 @@ void Eventloop::onTimer() {
         }
         for (auto fd : wait_timeout_fds) connections_.erase(fd);
     }
+    LOG_INFO("onTimer, {} fd timeout", wait_timeout_fds.size());
 
     handle_timer_(wait_timeout_fds);
 }

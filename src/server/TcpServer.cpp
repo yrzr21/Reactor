@@ -55,24 +55,27 @@ void TcpServer::removeConnection(int fd) {
     UniqueLock lock(*mutexes_[loopNo]);
 
     connection_maps_[loopNo].erase(fd);
-    subloops_[loopNo]->unregisterConnection(fd); // 不会有死锁问题
+    subloops_[loopNo]->unregisterConnection(fd);  // 不会有死锁问题
 }
 
 void TcpServer::start() {
     acceptor_.listen();
-    std::cout << "listening..." << std::endl;
+    LOG_INFO("TcpServer listening...");
     mainloop_->run();
 }
 
 void TcpServer::stop() {
-    std::cout << "stopping..." << std::endl;
+    LOG_INFO("TcpServer stopping...");
+
     mainloop_->stop();
-    std::cout << "主事件循环已停止" << std::endl;
+    LOG_INFO("主事件循环已停止");
+    
     for (size_t i = 0; i < subloops_.size(); i++) subloops_[i]->stop();
-    std::cout << "从事件循环已停止" << std::endl;
+    LOG_INFO("从事件循环已停止");
 
     io_thread_pool_.stopAll();
-    std::cout << "I/O线程已停止" << std::endl;
+    LOG_INFO("I/O线程已停止");
+    Logger::getConsoleLogger()->info("IO线程已停止");
 }
 
 // -- Acceptor hanler --
