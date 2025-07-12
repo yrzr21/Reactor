@@ -29,7 +29,7 @@ TcpServer::TcpServer(const TcpServerConfig &config)
         });
 
         // run loop in thread
-        io_thread_pool_.addTask([ptr = loop.get()] { ptr->run(); });
+        io_thread_pool_.addTask([ptr = loop.get()] { ptr->run(); }, true);
         subloops_.push_back(std::move(loop));
     }
 

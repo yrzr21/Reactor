@@ -9,6 +9,7 @@
 #include <iostream>
 #include <mutex>
 #include <queue>
+#include <semaphore>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -16,12 +17,15 @@
 #include "../types.h"
 
 class ThreadPool {
-   private:
+    static constexpr size_t BATCH_SIZE = 5;
+
    private:
     ThreadVec thread_pool_;
     TaskQueue task_queue_;
 
     Mutex mutex_;
+    size_t running_;  // 读写在临界区内
+
     CondVar condition_;
     AtomicBool is_stop_;
 
@@ -40,7 +44,8 @@ class ThreadPool {
 
     size_t size();
 
-    void addTask(Task &&task);
+    // urgent 模式下，一个任务唤醒一个线程，否则批量唤醒
+    void addTask(Task &&task, bool urgent = false);
     void stopAll();
 };
 
