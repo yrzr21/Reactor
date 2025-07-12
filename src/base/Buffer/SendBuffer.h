@@ -42,14 +42,16 @@ class SendBuffer {
    private:
     MemoryResource* upstream_;  // 留给SendUnit申请header用
 
+    std::mutex mtx_;
     std::deque<SendUnit> pending_units_;
 };
 
 inline SendBuffer::SendBuffer(MemoryResource* upstream) : upstream_(upstream) {}
 
-inline SendBuffer::~SendBuffer() { assert(pending_units_.empty()); }
+inline SendBuffer::~SendBuffer() { assert(empty()); }
 
 inline void SendBuffer::pushMessages(MsgVec&& msgs) {
+    UniqueLock lock(mtx_);
     for (auto& msg : msgs) {
         pending_units_.emplace_back(std::move(msg), upstream_);
     }
@@ -58,10 +60,12 @@ inline void SendBuffer::pushMessages(MsgVec&& msgs) {
 }
 
 inline void SendBuffer::pushMessage(MsgVec&& msg) {
+    UniqueLock lock(mtx_);
     pending_units_.emplace_back(std::move(msg), upstream_);
 }
 
 inline void SendBuffer::pushMessage(MsgView&& msg) {
+    UniqueLock lock(mtx_);
     pending_units_.emplace_back(std::move(msg), upstream_);
 }
 
@@ -69,12 +73,16 @@ inline size_t SendBuffer::sendAllToFd(int fd) {
     // std::cout << "[tid=" << std::this_thread::get_id()
     //           << "] SendBuffer::sendAllToFd" << std::endl;
     size_t nwrite = 0;
-    while (!pending_units_.empty()) {
+    while (true) {
         IoVecs iovs;
-        for (auto& unit : pending_units_) {
-            auto unit_iovs = unit.get_iovecs();
-            std::move(unit_iovs.begin(), unit_iovs.end(),
-                      std::back_inserter(iovs));
+        {
+            UniqueLock lock(mtx_);
+            if (pending_units_.empty()) break;
+            for (auto& unit : pending_units_) {
+                auto unit_iovs = unit.get_iovecs();
+                std::move(unit_iovs.begin(), unit_iovs.end(),
+                          std::back_inserter(iovs));
+            }
         }
 
         ssize_t n = ::writev(fd, iovs.data(), iovs.size());
@@ -95,6 +103,7 @@ inline size_t SendBuffer::sendAllToFd(int fd) {
 }
 
 inline void SendBuffer::updateState(size_t nwrite) {
+    UniqueLock lock(mtx_);
     size_t i = 0;
     while (nwrite > 0) {
         assert(i <= pending_units_.size());
@@ -106,6 +115,12 @@ inline void SendBuffer::updateState(size_t nwrite) {
     pending_units_.erase(pending_units_.begin(), pending_units_.begin() + i);
 }
 
-inline bool SendBuffer::empty() { return pending_units_.empty(); }
+inline bool SendBuffer::empty() {
+    UniqueLock lock(mtx_);
+    return pending_units_.empty();
+}
 
-inline void SendBuffer::clearPendings() { pending_units_.clear(); }
+inline void SendBuffer::clearPendings() {
+    UniqueLock lock(mtx_);
+    pending_units_.clear();
+}
