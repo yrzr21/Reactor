@@ -53,7 +53,8 @@ chmod +x open_server.sh
 chmod +x open_client.sh 
 ./open_client.sh 
 ```
-
+#### 性能测试
+- 见[README/性能测试.md](README/性能测试.md)
 ### todo
 - [ ] 添加性能测试脚本
 - [ ] 使用协程构建服务器
