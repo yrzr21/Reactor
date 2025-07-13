@@ -15,10 +15,12 @@ void Channel::enableEdgeTrigger() { events_ = events_ | EPOLLET; }
 
 // 监视读写事件 EPOLLIN 或 EPOLLOUT
 void Channel::enableEvent(uint32_t events) {
+    if (events_ & events) return;
     events_ |= events;
     loop_->controlChannel(EPOLL_CTL_MOD, this);
 }
 void Channel::disableEvent(uint32_t events) {
+    if (!(events_ & events)) return;
     events_ &= ~events;
     loop_->controlChannel(EPOLL_CTL_MOD, this);
 }
