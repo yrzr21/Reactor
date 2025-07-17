@@ -56,9 +56,7 @@ inline Area NonOverlapPool::findFreeArea(const std::vector<Area>& mappings,
         uintptr_t gap_start = alignUp(mappings[i].end, align);
         size_t gap_bytes = mappings[i + 1].start - gap_start;
 
-        if (gap_bytes >= bytes && !overlap(gap_start, bytes)) {
-            return {gap_start, bytes};
-        }
+        if (gap_bytes >= bytes) return {gap_start, bytes};
     }
     return {0, 0};
 }
