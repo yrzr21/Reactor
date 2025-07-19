@@ -2,18 +2,23 @@
 
 #include <atomic>
 
-#include "../types.h"
+#include "../../types.h"
+#include "../ServiceProvider.h"
 
 /*
 
 todo：ABA问题解决
 
-写一个分配器类管理 node，单向分配，每次申请一大片内存，记录已经申请过的chunk头地址，上层给相同的则删去不用，重新申请
+写一个分配器类管理
+node，单向分配，每次申请一大片内存，记录已经申请过的chunk头地址，上层给相同的则删去不用，重新申请
 问题：
     1. 高效查重：哈希表
-    2. 如何确保申请大片内存是高效的，不会死循环在申请上？可能要结合虚拟内存把物理内存映射到某个专用区域
-    3. 能分配多少对象？够用多久不会把虚拟地址空间用完？非常非常多，但保险起见需要用户自行估计最大所需的数量
-    4. 如何保证大片内存的释放？引用计数，每次调接口释放时都+计数。需自行保证不会占用过长生命周期，或提供接口对应长生命周期对象
+    2.
+如何确保申请大片内存是高效的，不会死循环在申请上？可能要结合虚拟内存把物理内存映射到某个专用区域
+    3.
+能分配多少对象？够用多久不会把虚拟地址空间用完？非常非常多，但保险起见需要用户自行估计最大所需的数量
+    4.
+如何保证大片内存的释放？引用计数，每次调接口释放时都+计数。需自行保证不会占用过长生命周期，或提供接口对应长生命周期对象
 
 可行性待验证
 
@@ -27,6 +32,10 @@ class LockFreeQueue {
 
     void enqueue(T&& task);
     bool dequeue(T& task_dest);
+
+   private:
+    T* allocate();
+    void deallocate(T* p);
 
    private:
     struct Node {
@@ -128,4 +137,15 @@ inline bool LockFreeQueue<T>::dequeue(T& data_dest) {
             return true;
         }
     }
+}
+
+template <typename T>
+inline T* LockFreeQueue<T>::allocate() {
+    void* addr = ServiceProvider::allocNonOverlap(sizeof(T));
+    return reinterpret_cast<T*>(addr);
+}
+
+template <typename T>
+inline void LockFreeQueue<T>::deallocate(T* p) {
+    ServiceProvider::deallocNonOverlap(reinterpret_cast<void*>(p));
 }

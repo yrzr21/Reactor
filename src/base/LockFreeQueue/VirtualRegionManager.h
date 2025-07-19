@@ -1,7 +1,10 @@
 #pragma once
 
+#include <condition_variable>
 #include <fstream>
 #include <map>
+#include <mutex>
+#include <semaphore>
 #include <string>
 #include <vector>
 
@@ -11,40 +14,44 @@
 
 强硬控制与选择解析区域
 
-应保证全局唯一，或者加全局锁
+单 Region 4MB，可分配 64K 个 64B对象
 
-todo：巨大页？尽量用这种东西
-todo：多个区域合为一个分配？
-todo：锁
+todo：懒查找
+
+应保证全局唯一
 */
+
+/* [start, start+bytes)，不用 char* 是因为可能被误解指向字符串 */
+struct Area {
+    uintptr_t start;
+    size_t bytes;
+};
 
 class VirtualRegionManager {
    public:
-    static uintptr_t allocRegion(size_t bytes = 1);  // 4MB 对齐
+    uintptr_t allocRegion();                   // 4MB 对齐
     static size_t addrRegion(uintptr_t addr);  // 返回该地址所属的 region 号
     static size_t regionBytes();
 
    private:
-    static std::vector<Area> parseMappings();
-    static uintptr_t findFreeArea(const std::vector<Area>& mappings,
-                                  size_t bytes);
-    static uintptr_t alignUp(uintptr_t addr);
+    std::vector<Area> parseMappings();
+    uintptr_t findFreeRegion(const std::vector<Area>& mappings);
+    uintptr_t alignUp(uintptr_t addr);
 
    private:
-    /* [start, start+bytes)，不用 char* 是因为可能被误解指向字符串 */
-    struct Area {
-        uintptr_t start;
-        size_t bytes;
-    };
-
     /* 4MB 对齐，虚拟内存可按 4MB 编号 */
-    static constexpr size_t ALIGN_BYTES = ::getpagesize() * 1024;
+    static constexpr size_t ALIGN_BYTES = 4 * 1024 * 1024;
     static constexpr size_t ALIGN_SHIFT = 22;  // 2^22 B = 4 MB
+
+    std::binary_semaphore sem_{1};
 };
 
-inline uintptr_t VirtualRegionManager::allocRegion(size_t bytes) {
+inline uintptr_t VirtualRegionManager::allocRegion() {
+    sem_.acquire();  // 睡眠锁
     std::vector<Area> mappings = parseMappings();
-    return findFreeArea(mappings, bytes);
+    uintptr_t region = findFreeRegion(mappings);
+    sem_.release();
+    return region;
 }
 
 inline size_t VirtualRegionManager::addrRegion(uintptr_t addr) {
@@ -70,15 +77,15 @@ inline std::vector<Area> VirtualRegionManager::parseMappings() {
     return mappings;
 }
 
-inline Area VirtualRegionManager::findFreeArea(
-    const std::vector<Area>& mappings, size_t bytes) {
+inline uintptr_t VirtualRegionManager::findFreeRegion(
+    const std::vector<Area>& mappings) {
     for (size_t i = 0; i + 1 < mappings.size(); i++) {
-        uintptr_t gap_start = alignUp(mappings[i].end);
+        uintptr_t gap_start = alignUp(mappings[i].start + mappings[i].bytes);
         size_t gap_bytes = mappings[i + 1].start - gap_start;
 
-        if (gap_bytes >= bytes) return {gap_start, bytes};
+        if (gap_bytes >= regionBytes()) return gap_start;
     }
-    return {0, 0};
+    return 0;
 }
 
 inline uintptr_t VirtualRegionManager::alignUp(uintptr_t addr) {

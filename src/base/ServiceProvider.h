@@ -5,6 +5,9 @@
 #include "../types.h"
 #include "./Buffer/SmartMonoManager.h"
 #include "./Buffer/SyncPool.h"
+#include "./LockFreeQueue/Region.h"
+#include "./LockFreeQueue/VirtualRegionManager.h"
+#include "./LockFreeQueue/NonOverlapObjectPool.h"
 
 struct ServiceProviderConfig {
     MemoryResource* upstream = nullptr;
@@ -34,8 +37,14 @@ class ServiceProvider {
     // local 也要 sync，因为容器可能被其他线程访问
     static SyncPool& getLocalSyncPool();
 
+    static Region allocRegion();
+    static void* allocNonOverlap(size_t bytes);
+    static void deallocNonOverlap(void* p);
+
    private:
     inline static ServiceProviderConfig config_;
+
+    static thread_local NonOverlapObjectPool noop_;
 };
 
 inline ServiceProvider::ServiceProvider(const ServiceProviderConfig& config) {
@@ -49,8 +58,10 @@ inline SmartMonoManager& ServiceProvider::getLocalMonoRecyclePool() {
     static thread_local SmartMonoManager local_pool_(getter,
                                                      config_.io_chunk_size);
     // std::cout << "[tid=" << std::this_thread::get_id()
-    //           << "] local mono manager = " << static_cast<void*>(&local_pool_)
-    //           << ", cur pool=" << static_cast<void*>(local_pool_.get_cur_resource())
+    //           << "] local mono manager = " <<
+    //           static_cast<void*>(&local_pool_)
+    //           << ", cur pool=" <<
+    //           static_cast<void*>(local_pool_.get_cur_resource())
     //           << ", capacity=" << local_pool_.capacity();
     if (local_pool_.capacity() < config_.io_min_remain_bytes)
         local_pool_.change_pool();
@@ -67,3 +78,16 @@ inline SyncPool& ServiceProvider::getLocalSyncPool() {
     //           << static_cast<void*>(&local_pool_) << std::endl;
     return local_pool_;
 }
+
+inline Region ServiceProvider::allocRegion() {
+    static VirtualRegionManager vrm;
+    uintptr_t addr = vrm.allocRegion();
+    size_t bytes = VirtualRegionManager::regionBytes();
+    return Region{addr, bytes};
+}
+
+inline void* ServiceProvider::allocNonOverlap(size_t bytes) {
+    return noop_.allocate(bytes);
+}
+
+inline void ServiceProvider::deallocNonOverlap(void* p) { noop_.deallocate(p); }

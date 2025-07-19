@@ -37,24 +37,15 @@ class Region {
     std::atomic<size_t> ref_cnt_ = 0;  // atomic?
 };
 
-inline Region::Region(size_t bytes) : bytes_(Region::align(bytes)) {
+inline Region::Region(uintptr_t start, size_t bytes)
+    : p_(reinterpret_cast<void*>(start)), bytes_(bytes) {
     // 懒分配
-    p_ = mmap(nullptr, bytes, PROT_READ | PROT_WRITE,
-              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    mmap(p_, bytes_, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1,
+         0);
 
-    if (p_ == MAP_FAILED) {
-        throw std::runtime_error("mmap failed");
-    }
-}
-
-inline Region::Region(uintptr_t start, size_t bytes) {
-    // 懒分配
-    p_ = mmap(start, bytes, PROT_READ | PROT_WRITE,
-              MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
-
-    if (p_ == MAP_FAILED) {
-        throw std::runtime_error("mmap failed");
-    }
+    // if (p_ == MAP_FAILED) {
+    //     throw std::runtime_error("mmap failed");
+    // }
 }
 
 inline Region::~Region() {
@@ -89,9 +80,4 @@ inline Region& Region::operator=(Region&& other) noexcept {
         other.bytes_ = 0;
     }
     return *this;
-}
-
-inline size_t Region::align(size_t original_bytes) {
-    size_t page_size = static_cast<size_t>();
-    return (original_bytes + page_size - 1) & ~(page_size - 1);
 }
