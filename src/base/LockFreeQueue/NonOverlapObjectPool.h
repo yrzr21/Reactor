@@ -3,11 +3,11 @@
 #include <atomic>
 #include <cassert>
 #include <deque>
-#include <map>
+#include <unordered_map>
+#include <memory>
 
 #include "Region.h"
 #include "VirtualRegionManager.h"
-#include "../ServiceProvider.h"
 
 /* 服务器初始化的时候调用这个函数 */
 

@@ -5,9 +5,9 @@
 #include "../types.h"
 #include "./Buffer/SmartMonoManager.h"
 #include "./Buffer/SyncPool.h"
+#include "./LockFreeQueue/NonOverlapObjectPool.h"
 #include "./LockFreeQueue/Region.h"
 #include "./LockFreeQueue/VirtualRegionManager.h"
-#include "./LockFreeQueue/NonOverlapObjectPool.h"
 
 struct ServiceProviderConfig {
     MemoryResource* upstream = nullptr;
@@ -37,14 +37,14 @@ class ServiceProvider {
     // local 也要 sync，因为容器可能被其他线程访问
     static SyncPool& getLocalSyncPool();
 
-    static Region allocRegion();
+    static uintptr_t allocRegion();
     static void* allocNonOverlap(size_t bytes);
     static void deallocNonOverlap(void* p);
 
    private:
     inline static ServiceProviderConfig config_;
 
-    static thread_local NonOverlapObjectPool noop_;
+    inline static thread_local NonOverlapObjectPool noop_;
 };
 
 inline ServiceProvider::ServiceProvider(const ServiceProviderConfig& config) {
@@ -79,11 +79,9 @@ inline SyncPool& ServiceProvider::getLocalSyncPool() {
     return local_pool_;
 }
 
-inline Region ServiceProvider::allocRegion() {
+inline uintptr_t ServiceProvider::allocRegion() {
     static VirtualRegionManager vrm;
-    uintptr_t addr = vrm.allocRegion();
-    size_t bytes = VirtualRegionManager::regionBytes();
-    return Region{addr, bytes};
+    return vrm.allocRegion();
 }
 
 inline void* ServiceProvider::allocNonOverlap(size_t bytes) {

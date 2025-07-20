@@ -1,5 +1,7 @@
 #include "NonOverlapObjectPool.h"
 
+#include "../ServiceProvider.h"  // cpp 可包含，不会有循环依赖
+
 NonOverlapObjectPool::NonOverlapObjectPool() { changeCurRegion(); }
 
 NonOverlapObjectPool::~NonOverlapObjectPool() {

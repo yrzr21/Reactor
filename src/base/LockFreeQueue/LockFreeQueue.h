@@ -34,8 +34,8 @@ class LockFreeQueue {
     bool dequeue(T& task_dest);
 
    private:
-    T* allocate();
-    void deallocate(T* p);
+    Node* allocate(T&& task);
+    void deallocate(Node* p);
 
    private:
     struct Node {
@@ -140,9 +140,11 @@ inline bool LockFreeQueue<T>::dequeue(T& data_dest) {
 }
 
 template <typename T>
-inline T* LockFreeQueue<T>::allocate() {
-    void* addr = ServiceProvider::allocNonOverlap(sizeof(T));
-    return reinterpret_cast<T*>(addr);
+inline LockFreeQueue<T>::Node* LockFreeQueue<T>::allocate(T&& task) {
+    void* addr =
+        ServiceProvider::allocNonOverlap(sizeof(LockFreeQueue<T>::Node));
+
+    return new (addr) LockFreeQueue<T>::Node(std::move(task));
 }
 
 template <typename T>
