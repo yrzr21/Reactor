@@ -87,6 +87,16 @@ add_executable(performance_test
     ${CMAKE_CURRENT_SOURCE_DIR}/test/PerformanceTest/performance_test.cpp
 )
 
+add_executable(test_lock_free_queue
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/LockFreeQueue/test_lock_free_queue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/base/LockFreeQueue/NonOverlapObjectPool.cpp
+)
+
+add_executable(test_virtual_region_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/LockFreeQueue/test_virtual_region_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/base/LockFreeQueue/NonOverlapObjectPool.cpp
+)
+
 # add_executable(test_local_mono_recycle_pool
 #     ${CMAKE_CURRENT_SOURCE_DIR}/test/unit_test/ServiceProvider/test_local_mono_recycle_pool.cpp
 #     ${CMAKE_CURRENT_SOURCE_DIR}/src/base/ThreadPool.cpp
