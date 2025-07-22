@@ -48,6 +48,8 @@ class VirtualRegionManager {
     void updateVMA();  // 解析 /proc/self/maps
     static void insertAndMerge(std::map<uintptr_t, Area>& vmas, Area area);
     static bool overlap(const Area& a, const Area& b);  // 辅助函数
+    static void printVMA(const std::map<uintptr_t, Area>& vmas);
+    void clearAndMerge();
 
     uintptr_t findFreeRegion();
     uintptr_t alignUp(uintptr_t addr);
@@ -60,8 +62,12 @@ class VirtualRegionManager {
     std::binary_semaphore sem_{1};
 
     /* 用户层维护的 vma，可能与实际不符，需要在必要时同步 */
-    std::map<uintptr_t, Area> os_vma_;    // 解析 /proc/self/maps 得到的
-    std::map<uintptr_t, Area> user_vma_;  // allocRegion 分配的
+
+    /* 解析 /proc/self/maps 得到的，懒惰更新（出错时更新） */
+    std::map<uintptr_t, Area> os_vma_;
+    /* allocRegion 分配的，可能与 os_vma 有重合（被使用后反映到表中） */
+    std::map<uintptr_t, Area> user_vma_;
+    std::map<uintptr_t, Area> total_vma_;  // 二者融合得到的
 };
 
 inline VirtualRegionManager::VirtualRegionManager() { updateVMA(); }
@@ -76,7 +82,9 @@ inline std::unique_ptr<Region> VirtualRegionManager::allocRegion() {
         sem_.release();
         return std::unique_ptr<Region>(region);
     } catch (...) {
+        total_vma_.clear();
         updateVMA();  // 映射失败时重新解析
+        // todo
 
         sem_.release();
         return {};
@@ -92,8 +100,8 @@ inline size_t VirtualRegionManager::regionBytes() { return ALIGN_BYTES; }
 inline void VirtualRegionManager::updateVMA() {
     std::cout << "updateVMA: " << std::endl;
 
+    // os vma
     std::ifstream maps("/proc/self/maps");
-
     std::string line;
     while (std::getline(maps, line)) {
         std::cout << line << std::endl;
@@ -104,13 +112,18 @@ inline void VirtualRegionManager::updateVMA() {
             size_t bytes = strtoull(range + dash + 1, nullptr, 16) - start;
 
             insertAndMerge(os_vma_, {start, bytes});
+            insertAndMerge(total_vma_, {start, bytes});
         }
     }
     std::cout << "after update, os vma=" << std::endl;
-    for (auto& iter : os_vma_) {
-        std::cout << std::hex << "start=" << iter.first
-                  << ", end=" << iter.first + iter.second.bytes << std::endl;
-    }
+    printVMA(os_vma_);
+    std::cout << "user vma=" << std::endl;
+    printVMA(user_vma_);
+
+    // merge with user
+    clearAndMerge();
+    std::cout << "after update, total vma=" << std::endl;
+    printVMA(total_vma_);
 }
 
 inline void VirtualRegionManager::insertAndMerge(
@@ -160,6 +173,26 @@ inline bool VirtualRegionManager::overlap(const Area& a, const Area& b) {
              (a.start > b.start && b.start + b.bytes <= a.start));
 }
 
+inline void VirtualRegionManager::printVMA(
+    const std::map<uintptr_t, Area>& vmas) {
+    for (const auto& iter : vmas) {
+        std::cout << std::hex << "start = " << iter.first
+                  << ", end = " << iter.first + iter.second.bytes << std::endl;
+    }
+}
+
+inline void VirtualRegionManager::clearAndMerge() {
+    total_vma_ = os_vma_;
+    for (const auto& [start, area] : user_vma_) {
+        /* 
+        vma不重叠，且os_vma与user_vma在已映射已使用的vma上可能重叠，
+        而已映射未使用的不会重叠，主要插入后者
+        */
+        if (total_vma_.contains(start)) continue;
+        insertAndMerge(total_vma_, area);
+    }
+}
+
 inline uintptr_t VirtualRegionManager::findFreeRegion() {
     auto cur = os_vma_.begin();
     auto next = std::next(cur);
@@ -168,6 +201,8 @@ inline uintptr_t VirtualRegionManager::findFreeRegion() {
         size_t gap_bytes = next->second.start - gap_start;
 
         if (gap_bytes >= regionBytes()) {
+            insertAndMerge(user_vma_, {gap_start, regionBytes()});
+            insertAndMerge(total_vma_, {gap_start, regionBytes()});
             std::cout << "free region at 0x" << std::hex << gap_start
                       << std::endl;
             return gap_start;
